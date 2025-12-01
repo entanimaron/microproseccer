@@ -136,7 +136,7 @@ int playGame() {
 	movePlayer();
 	moveEnemy();
 	hitCheck();
-	return 0;
+	return -1;
 }
 
 void drawImg(int x, int y, char img) {
@@ -180,7 +180,7 @@ void setBullet()
 	for (int i = 0; i < BULLET_MAX; i++) {
 		if (bullet[i].state == 0) {
 			bullet[i].x = player.x + player.wid;
-			bullet[i].y = player.y;
+			bullet[i].y = player.y + player.hei / 2;
 			bullet[i].vx = 20;
 			bullet[i].vy = 0;
 			bullet[i].state = 1;
@@ -229,7 +229,6 @@ void moveEnemy()
 	for (int i = 0; i < ENE_MAX; i++) {
 		if (enemy[i].state == 0) continue;
 		if (enemy[i].ptn == ENE_BULLET) {
-			char img[1][1] = "*";
 			enemy[i].x -= enemy[i].vx;
 		}
 		if (enemy[i].x < 0) enemy[i].state = 0;
@@ -248,6 +247,7 @@ void hitCheck()
 		if (dx < 8 && dy < 8) {
 			player.life--;
 			enemy[i].state = 0;
+            break;
 		}
 	}
 	//ボスと自分の弾のあたり判定
@@ -258,6 +258,8 @@ void hitCheck()
 		if (dx < 0) dx *= -1;
 		if (dy < 0) dy *= -1;
 		if (dx <  (boss.wid + bullet[i].wid) / 2 && dy < (boss.hei + bullet[i].hei) / 2) boss.life--;
+        bullet[i].state = 0;
+        break;
 	}
 }
 
