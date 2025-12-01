@@ -257,9 +257,11 @@ void hitCheck()
 		int dy = boss.y + boss.hei / 2 - (bullet[i].y + bullet[i].hei / 2);
 		if (dx < 0) dx *= -1;
 		if (dy < 0) dy *= -1;
-		if (dx <  (boss.wid + bullet[i].wid) / 2 && dy < (boss.hei + bullet[i].hei) / 2) boss.life--;
-        bullet[i].state = 0;
-        break;
+		if (dx <  (boss.wid + bullet[i].wid) / 2 && dy < (boss.hei + bullet[i].hei) / 2) {
+            boss.life--;
+            bullet[i].state = 0;
+            break;
+        }
 	}
 }
 
