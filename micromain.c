@@ -84,11 +84,11 @@ void interrupt_handler() {
 			setEnemy(86, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
 		}
 		cnt++;
-		lcd_putc(0, 0, 'L');
-        lcd_putc(1, 0, 'I');
-        lcd_putc(2, 0, 'F');
-        lcd_putc(3, 0, 'E');
-        lcd_putc(4, 0, '0' + player.life);
+		lcd_putc(7, 0, 'L');
+        lcd_putc(7, 1, 'I');
+        lcd_putc(7, 2, 'F');
+        lcd_putc(7, 3, 'E');
+        lcd_putc(7, 4, '0' + player.life);
         
 	} else if (state == CLEAR) {
 		//描画
@@ -199,7 +199,7 @@ void moveBullet()
 		bullet[i].x += bullet[i].vx;
 		bullet[i].y += bullet[i].vy;
 		
-		if (bullet[i].x > 100) bullet[i].state = 0;
+		if (bullet[i].x > WIDTH || bullet[i].x < -bullet[i].wid) bullet[i].state = 0;
 	}
 }
 
