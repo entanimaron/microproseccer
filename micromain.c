@@ -9,16 +9,19 @@
 #define MAX_Y 7
 #define ENCODER_BASE 0.1
 char boss_img = 'B';
-int playGame();
-void initGame();
-void initVariable();
-void movePlayer();
-void setBullet();
-void moveBullet();
-int setEnemy(int x, int y, int vx, int vy, char img, int life, int ptn, int wid, int hei);
-void moveEnemy();
-void drawImg(int x, int y, char img);
-void hitCheck();
+int playGame();  //ゲームをする関数
+void initGame();  //ゲームを初期化する関数
+void initVariable();  //変数を初期化する関数
+void movePlayer();  //playerの動きを定義する関数
+void setBullet();  //弾をセットする関数
+void moveBullet();  //弾の動きを決める関数
+int setEnemy(int x, int y, int vx, int vy, char img, int life, int ptn, int wid, int hei);  //敵をセットする関数
+void moveEnemy();  //敵(今は弾)の動きを決める関数
+void setItem();  //アイテムをセットする感ん数
+void moveItem();  //アイテムの動きを決める関数、ゲットした時の動作も決める
+void drawImg(int x, int y, char img);  //imgを描画
+void hitCheck();  //当たり判定を確認する関数
+int myRanf();
 int  btn_check_0();
 int  btn_check_1();
 int  btn_check_3();
@@ -29,11 +32,14 @@ void lcd_putc(int y, int x, int c);
 void lcd_sync_vbuf();
 void lcd_clear_vbuf();
 enum { ENE_BULLET, ENE_BOSS};
-
+enum { NORMAL, SHOTGUN, BEAM};
 enum { INIT, OPENING, PLAY, CLEAR, OVER};
 int state = INIT, pos = 0;
 int rte_prev = 128;
-
+int shotType = NORMAL;
+static int seed = 23;
+static int timer = 0;
+int startPowerUp = 0;
 struct OBJECT
 {
 	int x;
@@ -46,12 +52,14 @@ struct OBJECT
 	int life;
 	int state;
 	int ptn;
+    int timer;
 };
 
 struct OBJECT player;
 struct OBJECT bullet[BULLET_MAX];
 struct OBJECT enemy[ENE_MAX];
 struct OBJECT boss;
+struct OBJECT item;
 /* interrupt_handler() is called every 100msec */
 void interrupt_handler() {
 	lcd_clear_vbuf();
@@ -108,6 +116,7 @@ void main() {
 			state = PLAY;
 			initVariable();
 		} else if (state == PLAY) {
+            timer++;
 			int s = playGame();
 			if (s == 0) state = CLEAR;
 			if (s == 1) state = OVER;
@@ -131,10 +140,12 @@ int playGame() {
         boss.state = 1;
         boss.img = boss_img;
 	}
-	
+	if (item.state == 0 && timer % 600 == 1) setItem();
+    if (shotType != NORMAL && timer - startPowerUp >= 100) shotType = NORMAL;
 	moveBullet();
 	movePlayer();
 	moveEnemy();
+    moveItem();
 	hitCheck();
 	return -1;
 }
@@ -161,6 +172,9 @@ void initVariable()
 	player.wid = 8;
 	player.hei = 8;
 	player.life = 3;
+    timer = 0;
+    startPowerUp = 0;
+    shotType = NORMAL;
 }
 
 void movePlayer()
@@ -177,19 +191,39 @@ void movePlayer()
 
 void setBullet()
 {
-	for (int i = 0; i < BULLET_MAX; i++) {
-		if (bullet[i].state == 0) {
-			bullet[i].x = player.x + player.wid;
-			bullet[i].y = player.y + player.hei / 2;
-			bullet[i].vx = 20;
-			bullet[i].vy = 0;
-			bullet[i].state = 1;
-			bullet[i].wid = 8;
-			bullet[i].hei = 8;
-			break;
-		}
-		
-	}
+    int base_x = player.x + player.wid;
+    int base_y = player.y + player.hei / 2;
+    if (shotType == NORMAL) {
+        for (int i = 0; i < BULLET_MAX; i++) {
+		    if (bullet[i].state == 0) {
+			    bullet[i].x = base_x;
+			    bullet[i].y = base_y;
+			    bullet[i].vx = 20;
+			    bullet[i].vy = 0;
+			    bullet[i].state = 1;
+			    bullet[i].wid = 8;
+			    bullet[i].hei = 4;
+			    break;
+		    }
+	    }
+    } else if (shotType == SHOTGUN) {
+        int bulletAngleNum = 3;
+        for (int k = 0; k < bulletAngleNum; k++) {
+            for (int i = 0; i < BULLET_MAX; i++) {
+		        if (bullet[i].state == 0) {
+			        bullet[i].x = base_x;
+			        bullet[i].y = base_y;
+			        bullet[i].vx = 15;
+			        bullet[i].vy = (k - 1) * (-5);
+			        bullet[i].state = 1;
+			        bullet[i].wid = 8;
+			        bullet[i].hei = 4;
+			        break;
+		        }
+	        }
+        }
+    }
+	
 }
 
 void moveBullet()
@@ -235,6 +269,36 @@ void moveEnemy()
 	}
 }
 
+void setItem()
+{
+    item.x = WIDTH * 3 / 4;
+    item.y = (myRand() % 8) * 8 + 4;
+    item.vx = 2;
+    item.vy = 0;  //今のところ0
+    item.state = 1;
+    item.wid = 8;
+    item.hei = 8;
+    item.timer = 0;
+}
+
+void moveItem()
+{
+    if (item.state == 0) return;
+    item.x -= item.vx;
+    item.y -= item.vy;  //今のところ0
+    int dx = (item.x + item.wid / 2) - (player.x + player.wid / 2);
+    int dy = (item.y + item.hei / 2) - (player.y + player.hei / 2);
+    if (dx < (item.wid + player.wid) / 2 && dy < (item.hei + player.hei) / 2) {
+        item.ptn = 1;  //本来ならtimerでshotgun,beamのどちらか抽選
+        startPowerUp = timer;
+        if (item.ptn == SHOTGUN) {
+            shotType = SHOTGUN;
+        }
+        item.state = 0;
+    }
+    
+}
+
 void hitCheck()
 {
 	//ボスの弾と自分のあたり判定
@@ -263,6 +327,12 @@ void hitCheck()
             break;
         }
 	}
+}
+
+int myRand()
+{
+    seed = (11 * seed + 16) % 256;
+    return seed;
 }
 
  /*
