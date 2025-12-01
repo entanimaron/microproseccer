@@ -1,350 +1,365 @@
-#include <stdint.h>
-#include <stdbool.h>
+/* Do not remove the following line. Do not remove interrupt_handler(). */
+#include "crt0.c"
+#include "ChrFont0.h"
+#define BULLET_MAX 100
+#define ENE_MAX 100
+#define WIDTH 96
+#define HEIGHT 64
+#define RTE_ADDR 0xff12
+#define MAX_Y 7
+#define ENCODER_BASE 0.1
+char boss_img = 'B';
+int playGame();
+void initGame();
+void initVariable();
+void movePlayer();
+void setBullet();
+void moveBullet();
+int setEnemy(int x, int y, int vx, int vy, char img, int life, int ptn, int wid, int hei);
+void moveEnemy();
+void drawImg(int x, int y, char img);
+void hitCheck();
+int  btn_check_0();
+int  btn_check_1();
+int  btn_check_3();
+void led_set(int data);
+void led_blink();
+void lcd_init();
+void lcd_putc(int y, int x, int c);
+void lcd_sync_vbuf();
+void lcd_clear_vbuf();
+enum { ENE_BULLET, ENE_BOSS};
 
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+enum { INIT, OPENING, PLAY, CLEAR, OVER};
+int state = INIT, pos = 0;
+int rte_prev = 128;
 
-//---------------------------------------------------------
-//  ▼▼ ハードウェアAPI（実験環境で実装） ▼▼
-//---------------------------------------------------------
-int readKnobADC();
-bool readFireButton();
-void drawPlayer(int x, int y);
-void drawBullet(int x, int y);
-void drawBoss(int x, int y, int hp);
-void drawObstacle(int x, int y);
-void drawNumber(int x, int y, int v);
-void drawLifeItem(int x, int y);
-void vibrateMotor(int ms);
-int  getRandom(int min, int max);
+struct OBJECT
+{
+	int x;
+	int y;
+	int vx;
+	int vy;
+	char img;
+	int  wid;
+	int hei;
+	int life;
+	int state;
+	int ptn;
+};
 
-//---------------------------------------------------------
-//  ▼▼ Aさんのデータ構造 ▼▼
-//---------------------------------------------------------
-
-typedef struct {
-    int x, y;
-    int hp;
-    bool alive;
-} Boss;
-
-typedef struct {
-    int x, y;
-    bool active;
-} Obstacle;
-
-typedef struct {
-    int x, y;
-    int value;
-    bool active;
-} NumberObj;
-
-typedef struct {
-    int x, y;
-    bool active;
-} LifeItem;
-
-#define MAX_OBSTACLES 10
-#define MAX_ITEMS 5
-#define MAX_SAVED_NUMBERS 30
-
-Boss boss;
-Obstacle obstacles[MAX_OBSTACLES];
-NumberObj numbers[MAX_OBSTACLES];
-LifeItem items[MAX_ITEMS];
-int savedNumbers[MAX_SAVED_NUMBERS];
-int savedIndex = 0;
-
-//---------------------------------------------------------
-//  ▼▼ Bさんのデータ ▼▼
-//---------------------------------------------------------
-int playerLife = 5;
-int maxLife = 5;
-
-//---------------------------------------------------------
-//  ▼▼ Cさんのデータ（プレイヤー＋弾キュー） ▼▼
-//---------------------------------------------------------
-typedef struct {
-    int x, y;
-    bool active;
-} Bullet;
-
-#define MAX_BULLETS 20
-
-Bullet bulletQueue[MAX_BULLETS];
-int q_front = 0;
-int q_rear = 0;
-
-int playerX = 10;
-int playerY = SCREEN_HEIGHT / 2;
-
-
-//=========================================================
-//  ▼▼ Aさんの担当処理 ▼▼
-//=========================================================
-
-void initA() {
-    boss.x = SCREEN_WIDTH - 20;
-    boss.y = SCREEN_HEIGHT / 2;
-    boss.hp = 20;
-    boss.alive = true;
-
-    for (int i = 0; i < MAX_OBSTACLES; i++) {
-        obstacles[i].active = false;
-        numbers[i].active = false;
-    }
-    for (int i = 0; i < MAX_ITEMS; i++) {
-        items[i].active = false;
-    }
-}
-
-void saveNumber(int num) {
-    if (savedIndex < MAX_SAVED_NUMBERS)
-        savedNumbers[savedIndex++] = num;
-}
-
-// 障害物生成
-void spawnObstacle() {
-    for (int i = 0; i < MAX_OBSTACLES; i++) {
-        if (!obstacles[i].active) {
-            obstacles[i].active = true;
-            obstacles[i].x = SCREEN_WIDTH - 1;
-            obstacles[i].y = getRandom(0, SCREEN_HEIGHT - 1);
-
-            // 数字付きにする
-            if (getRandom(0, 10) > 6) {
-                numbers[i].active = true;
-                numbers[i].value = getRandom(2, 99);
-                numbers[i].x = obstacles[i].x;
-                numbers[i].y = obstacles[i].y;
-
-                saveNumber(numbers[i].value); // Bさん用に保存
-            }
-            return;
+struct OBJECT player;
+struct OBJECT bullet[BULLET_MAX];
+struct OBJECT enemy[ENE_MAX];
+struct OBJECT boss;
+/* interrupt_handler() is called every 100msec */
+void interrupt_handler() {
+	lcd_clear_vbuf();
+	static int cnt;
+	if (state == INIT) {
+	} else if (state == OPENING) {
+		cnt = 0;
+		//描画
+	} else if (state == PLAY) {
+		//描画
+		drawImg(player.x, player.y, player.img);
+		for (int i = 0; i < BULLET_MAX; i++) {
+			if (bullet[i].state == 0) continue;
+			drawImg(bullet[i].x, bullet[i].y, '-');
+		}
+		for (int i = 0; i < ENE_MAX; i++) {
+            if (enemy[i].state == 0) continue;
+            drawImg(enemy[i].x, enemy[i].y, enemy[i].img);
         }
-    }
-}
-
-// ライフアイテム生成
-void spawnLifeItem() {
-    for (int i = 0; i < MAX_ITEMS; i++) {
-        if (!items[i].active) {
-            items[i].active = true;
-            items[i].x = SCREEN_WIDTH - 1;
-            items[i].y = getRandom(0, SCREEN_HEIGHT - 1);
-            return;
-        }
-    }
-}
-
-// 更新（障害物・数字）
-void updateObstacles() {
-    for (int i = 0; i < MAX_OBSTACLES; i++) {
-        if (obstacles[i].active) {
-            obstacles[i].x -= 1;
-            if (obstacles[i].x < 0)
-                obstacles[i].active = false;
-            else
-                drawObstacle(obstacles[i].x, obstacles[i].y);
-        }
-
-        if (numbers[i].active) {
-            numbers[i].x -= 1;
-            if (numbers[i].x < 0)
-                numbers[i].active = false;
-            else
-                drawNumber(numbers[i].x, numbers[i].y, numbers[i].value);
-        }
-    }
-}
-
-void updateItems() {
-    for (int i = 0; i < MAX_ITEMS; i++) {
-        if (items[i].active) {
-            items[i].x -= 1;
-            if (items[i].x < 0)
-                items[i].active = false;
-            else
-                drawLifeItem(items[i].x, items[i].y);
-        }
-    }
-}
-
-void updateBoss() {
-    if (boss.alive)
-        drawBoss(boss.x, boss.y, boss.hp);
-}
-
-
-
-//=========================================================
-//  ▼▼ Bさんの担当部分 ▼▼
-//=========================================================
-
-// 素因数分解 → 弾数戻す
-int getBulletFromPrimeFactor(int n) {
-    int bullet = 0;
-
-    for (int i = 2; i * i <= n; i++) {
-        while (n % i == 0) {
-            bullet++;
-            n /= i;
-        }
-    }
-    if (n > 1) bullet++;
-    return bullet;
-}
-
-// 数字一致判定
-bool checkNumberMatch(int input) {
-    for (int i = 0; i < savedIndex; i++) {
-        if (savedNumbers[i] == input) return true;
-    }
-    return false;
-}
-
-void increaseLife(int amount) {
-    playerLife += amount;
-    if (playerLife > maxLife) playerLife = maxLife;
-}
-
-void decreaseLife(int amount) {
-    playerLife -= amount;
-    if (playerLife < 0) playerLife = 0;
-}
-
-
-
-//=========================================================
-//  ▼▼ Cさんの担当部分 ▼▼
-//=========================================================
-
-// キュー
-bool queueFull() { return ((q_rear + 1) % MAX_BULLETS) == q_front; }
-bool queueEmpty() { return (q_front == q_rear); }
-
-void enqueueBullet(int x, int y) {
-    if (!queueFull()) {
-        bulletQueue[q_rear].x = x;
-        bulletQueue[q_rear].y = y;
-        bulletQueue[q_rear].active = true;
-        q_rear = (q_rear + 1) % MAX_BULLETS;
-    }
-}
-
-// プレイヤー移動
-void updatePlayer() {
-    int adc = readKnobADC();  // 0〜1023と想定
-    playerY = (adc * SCREEN_HEIGHT) / 1023;
-    drawPlayer(playerX, playerY);
-}
-
-// 発射処理
-void handleShoot() {
-    if (readFireButton()) {
-        enqueueBullet(playerX + 5, playerY);
-    }
-}
-
-// 弾更新
-bool bulletHitsBoss(int bx, int by) {
-    return (bx >= boss.x && bx <= boss.x + 10 &&
-            by >= boss.y && by <= boss.y + 10);
-}
-
-void updateBullets() {
-    for (int i = q_front; i != q_rear; i = (i + 1) % MAX_BULLETS) {
-        Bullet *b = &bulletQueue[i];
-        if (b->active) {
-            b->x += 3;
-
-            if (b->x > SCREEN_WIDTH) {
-                b->active = false;
-            } else if (bulletHitsBoss(b->x, b->y)) {
-                boss.hp--;
-                b->active = false;
-            }
-
-            if (b->active)
-                drawBullet(b->x, b->y);
-        }
-    }
-}
-
-
-
-//=========================================================
-//  ▼▼ ABC統合：メインゲームループ ▼▼
-//=========================================================
-
-void gameLoop() {
-
-    initA();
-
-    while (1) {
-
-        //-------------------------------------------------
-        // A：生成（ランダム）
-        //-------------------------------------------------
-        if (getRandom(0, 100) > 97) spawnObstacle();
-        if (getRandom(0, 200) > 198) spawnLifeItem();
-
-        //-------------------------------------------------
-        // C：プレイヤー
-        //-------------------------------------------------
-        updatePlayer();
-        handleShoot();
-
-        //-------------------------------------------------
-        // C：弾の更新（→ボスのHP減少）
-        //-------------------------------------------------
-        updateBullets();
-
-        //-------------------------------------------------
-        // A：障害物・アイテム・ボス更新
-        //-------------------------------------------------
-        updateObstacles();
-        updateItems();
-        updateBoss();
-
-        //-------------------------------------------------
-        // B：プレイヤーの被弾 & ライフ処理
-        //-------------------------------------------------
-        // 障害物によるダメージ
-        for (int i = 0; i < MAX_OBSTACLES; i++) {
-            if (obstacles[i].active &&
-                obstacles[i].x == playerX &&
-                obstacles[i].y == playerY) {
-
-                decreaseLife(1);
-                vibrateMotor(200);
-                obstacles[i].active = false;
-                numbers[i].active = false;
+		if (boss.state == 1) { 
+            for (int r = 0; r < 3; r++) { // 行 (Y)
+                for (int c = 0; c < 3; c++) { // 列 (X)
+                    drawImg(boss.x + c * 8, boss.y + r * 8, boss.img); 
+                }
             }
         }
+		
+	    if (cnt % 10 == 0) {
+			setEnemy(90, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
+			setEnemy(86, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
+		}
+		cnt++;
+		lcd_putc(0, 0, 'L');
+        lcd_putc(1, 0, 'I');
+        lcd_putc(2, 0, 'F');
+        lcd_putc(3, 0, 'E');
+        lcd_putc(4, 0, '0' + player.life);
+        
+	} else if (state == CLEAR) {
+		//描画
+		lcd_puts(0, 4, "GAME CLEAR!");
+	} else if (state == OVER) {
+		//描画
+		lcd_puts(0, 4, "GAME OVER!");
+	}
+	lcd_sync_vbuf();
+}
+void main() {
+	while (1) {
+		if (state == INIT) {
+			lcd_init();
+			state = OPENING; 
+		} else if (state == OPENING) {
+			state = PLAY;
+			initVariable();
+		} else if (state == PLAY) {
+			int s = playGame();
+			if (s == 0) state = CLEAR;
+			if (s == 1) state = OVER;
+		} else if (state == CLEAR) {
+			state = OPENING;
+		} else if (state == OVER) {
+			state = OPENING;
+		}
+	}
+}
+int playGame() {
 
-        // アイテム取得
-        for (int i = 0; i < MAX_ITEMS; i++) {
-            if (items[i].active &&
-                items[i].x == playerX &&
-                items[i].y == playerY) {
-
-                increaseLife(1);
-                items[i].active = false;
-            }
-        }
-
-        //-------------------------------------------------
-        // ゲーム終了条件
-        //-------------------------------------------------
-        if (boss.hp <= 0) {
-            // ボス撃破 → クリア
-            break;
-        }
-        if (playerLife <= 0) {
-            // プレイヤー死亡 → ゲームオーバー
-            break;
-        }
-    }
+	if (player.life < 1) return 1;
+	if (boss.life < 1) return 0;
+	if (boss.state == 0 && player.life > 0) {
+		boss.x = WIDTH - 24; 
+        boss.y = HEIGHT / 2 - 12; 
+        boss.wid = 24;      
+        boss.hei = 24;      
+        boss.life = 30;
+        boss.state = 1;
+        boss.img = boss_img;
+	}
+	
+	moveBullet();
+	movePlayer();
+	moveEnemy();
+	hitCheck();
+	return 0;
 }
 
+void drawImg(int x, int y, char img) {
+	int cnt = 0;
+	int x_char = x / 8;
+	int y_char = y / 8;
+	if (x_char >= 0 && x_char < WIDTH / 8 && y_char >= 0 && y_char < HEIGHT / 8) {
+		lcd_putc(y_char, x_char, img);
+	}
+
+}
+
+
+
+void initVariable()
+{
+	player.x = WIDTH / 4;
+	player.y = HEIGHT / 2;
+	player.vx = 5;
+	player.vy = 5;
+	player.img = '>';
+	player.wid = 8;
+	player.hei = 8;
+	player.life = 3;
+}
+
+void movePlayer()
+{
+	volatile int *rte_ptr = (int*)RTE_ADDR;
+	int rte_current = (*rte_ptr) >> 2;
+	int diff = rte_current - rte_prev;
+	rte_prev = rte_current;
+	player.y += diff * ENCODER_BASE * player.vy;
+	if (player.y < 0) player.y = 0;
+	if (player.y > HEIGHT - player.hei) player.y = HEIGHT - player.hei;
+	if (btn_check_0()) setBullet(); 
+}
+
+void setBullet()
+{
+	for (int i = 0; i < BULLET_MAX; i++) {
+		if (bullet[i].state == 0) {
+			bullet[i].x = player.x + player.wid;
+			bullet[i].y = player.y;
+			bullet[i].vx = 20;
+			bullet[i].vy = 0;
+			bullet[i].state = 1;
+			bullet[i].wid = 8;
+			bullet[i].hei = 8;
+			break;
+		}
+		
+	}
+}
+
+void moveBullet()
+{
+	for (int i = 0; i < BULLET_MAX; i++) {
+		if (bullet[i].state == 0) continue;
+		bullet[i].x += bullet[i].vx;
+		bullet[i].y += bullet[i].vy;
+		
+		if (bullet[i].x > 100) bullet[i].state = 0;
+	}
+}
+
+int setEnemy(int x, int y, int vx, int vy, char img, int life,int ptn, int wid, int hei)
+{
+	
+	for (int i = 0; i < ENE_MAX; i++) {
+		if (enemy[i].state == 0) {
+			enemy[i].x = x;
+			enemy[i].y = y;
+			enemy[i].vx = vx;
+			enemy[i].vy = vy;
+			enemy[i].life = life;
+			enemy[i].img = img;
+			enemy[i].ptn = ptn;
+			enemy[i].wid = wid;
+			enemy[i].hei = hei;
+			enemy[i].state = 1;
+			return i;
+		}
+	}
+	return -1;
+}
+
+void moveEnemy()
+{
+	for (int i = 0; i < ENE_MAX; i++) {
+		if (enemy[i].state == 0) continue;
+		if (enemy[i].ptn == ENE_BULLET) {
+			char img[1][1] = "*";
+			enemy[i].x -= enemy[i].vx;
+		}
+		if (enemy[i].x < 0) enemy[i].state = 0;
+	}
+}
+
+void hitCheck()
+{
+	//ボスの弾と自分のあたり判定
+	for (int i = 0;i < ENE_MAX; i++) {
+		if (enemy[i].state == 0) continue;
+		int dx = enemy[i].x - player.x;
+		int dy = enemy[i].y - player.y;
+		if (dx < 0) dx *= -1;
+		if (dy < 0) dy *= -1;
+		if (dx < 8 && dy < 8) {
+			player.life--;
+			enemy[i].state = 0;
+		}
+	}
+	//ボスと自分の弾のあたり判定
+	for (int i = 0; i < BULLET_MAX; i++) {
+		if (bullet[i].state == 0) continue;
+		int dx = boss.x + boss.wid / 2 - (bullet[i].x + bullet[i].wid / 2);
+		int dy = boss.y + boss.hei / 2 - (bullet[i].y + bullet[i].hei / 2);
+		if (dx < 0) dx *= -1;
+		if (dy < 0) dy *= -1;
+		if (dx <  (boss.wid + bullet[i].wid) / 2 && dy < (boss.hei + bullet[i].hei) / 2) boss.life--;
+	}
+}
+
+ /*
+ * Switch functions
+ */
+int btn_check_0() {
+	volatile int *sw_ptr = (int *)0xff04;;
+	return (*sw_ptr & 0x10) ? 1 : 0;
+}
+int btn_check_1() {
+	volatile int *sw_ptr = (int *)0xff04;;
+	return (*sw_ptr & 0x20) ? 1 : 0;
+}
+int btn_check_3() {
+	volatile int *sw_ptr = (int *)0xff04;;
+	return (*sw_ptr & 0x80) ? 1 : 0;
+}
+/*
+ * LED functions
+ */
+void led_set(int data) {
+	volatile int *led_ptr = (int *)0xff08;
+	*led_ptr = data;
+}
+void led_blink() {
+	led_set(0xf);				/* Turn on */
+	for (int i = 0; i < 300000; i++);	/* Wait */
+	led_set(0x0);				/* Turn off */
+	for (int i = 0; i < 300000; i++);	/* Wait */
+	led_set(0xf);				/* Turn on */
+	for (int i = 0; i < 300000; i++);	/* Wait */
+	led_set(0x0);				/* Turn off */
+}
+/*
+ * LCD functions
+ */
+unsigned char lcd_vbuf[64][96];
+void lcd_wait(int n) {
+	/* Not implemented yet */
+	for (int i = 0; i < n; i++);
+}
+void lcd_cmd(unsigned char cmd) {
+	/* Not implemented yet */
+	volatile int *lcd_ptr = (int *)0xff0c;
+        *lcd_ptr = cmd;
+        lcd_wait(1000);
+}
+void lcd_data(unsigned char data) {
+	/* Not implemented yet */
+	volatile int *lcd_ptr = (int *)0xff0c;
+    *lcd_ptr = 0x100 | data;
+    lcd_wait(200);
+}
+void lcd_pwr_on() {
+	/* Not implemented yet */
+	volatile int *lcd_ptr = (int *)0xff0c;
+        *lcd_ptr = 0x200;
+        lcd_wait(700000);
+}
+void lcd_init() {
+	/* Not implemented yet */
+	lcd_pwr_on();   /* Display power ON */
+    lcd_cmd(0xa0);  /* Remap & color depth */
+    lcd_cmd(0x20);
+    lcd_cmd(0x15);  /* Set column address */
+	lcd_cmd(0);
+    lcd_cmd(95);
+    lcd_cmd(0x75);  /* Set row address */
+    lcd_cmd(0);
+    lcd_cmd(63);
+    lcd_cmd(0xaf);  /* Display ON */
+}
+void lcd_set_vbuf_pixel(int row, int col, int r, int g, int b) {
+	/* Not implemented yet */
+	r >>= 5; g >>= 5; b >>= 6;
+    lcd_vbuf[row][col] = ((r << 5) | (g << 2) | (b << 0)) & 0xff;
+}
+void lcd_clear_vbuf() {
+	/* Not implemented yet */
+    for (int row = 0; row < 64; row++)
+            for (int col = 0; col < 96; col++)
+                    lcd_vbuf[row][col] = 0;
+}
+void lcd_sync_vbuf() {
+	/* Not implemented yet */
+	for (int row = 0; row < 64; row++)
+        	for (int col = 0; col < 96; col++)
+            		lcd_data(lcd_vbuf[row][col]);
+}
+void lcd_putc(int y, int x, int c) {
+	/* Not implemented yet */
+	for (int v = 0; v < 8; v++)
+                for (int h = 0; h < 8; h++)
+                        if ((font8x8[(c - 0x20) * 8 + h] >> v) & 0x01)
+                                lcd_set_vbuf_pixel(y * 8 + v, x * 8 + h, 0, 255, 0);
+}
+void lcd_puts(int y, int x, char *str) {
+	/* Not implemented yet */
+	for (int i = x; i < 12; i++)
+                if (str[i] < 0x20 || str[i] > 0x7f)
+                        break;
+                else
+                        lcd_putc(y, i, str[i]);
+}
