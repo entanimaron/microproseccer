@@ -9,7 +9,7 @@
 #define MAX_Y 7
 #define ENCODER_BASE 0.1
 char boss_img = 'B';
-char item_img = 'I'
+char item_img = 'I'；
 int playGame();  //ゲームをする関数
 void initGame();  //ゲームを初期化する関数
 void initVariable();  //変数を初期化する関数
@@ -121,6 +121,7 @@ void interrupt_handler() {
             setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);
         }
 		cnt++;
+        draw_input_formula();
         //ライフの表示 LEDにしたい
 		lcd_putc(7, 0, 'L');
         lcd_putc(7, 1, 'I');
@@ -331,6 +332,8 @@ void moveItem()
     item.y -= item.vy;  //今のところ0
     int dx = (item.x + item.wid / 2) - (player.x + player.wid / 2);
     int dy = (item.y + item.hei / 2) - (player.y + player.hei / 2);
+    if (dx < 0) dx *= -1;
+    if (dy < 0) dy *= -1;
     if (dx < (item.wid + player.wid) / 2 && dy < (item.hei + player.hei) / 2) {
         item.ptn = 1;  //本来ならtimerでshotgun,beamのどちらか抽選
         startPowerUp = timer;
@@ -520,9 +523,9 @@ int key_pad_scan()
     return -1; // どのキーも押されていない場合
 }
 
-void handle_keypad_input() {
+void handle_key_input() {
     static int prev_key = -1;
-    int key = keypad_scan();
+    int key = key_pad_scan();
 
     if (key == prev_key) return;  // 押しっぱなし防止
     prev_key = key;
@@ -536,7 +539,7 @@ void handle_keypad_input() {
     if (key >= 2 && key <= 9) { 
         // 配列境界チェック 
         if (input_len + 2 < 16) { 
-            input_product *= key;
+            product *= key;
 
             input_str[input_len++] = '0' + key; 
             input_str[input_len++] = 'x'; 
@@ -555,14 +558,14 @@ void handle_keypad_input() {
         check_factor_solution(); 
 
         // 入力リセット
-        input_product = 1;
+        product = 1;
         input_len = 0;
         input_str[0] = 0;
     }
 
     /* ===== Bキー → 全消去 (テンキーで11) ===== */
     if (key == 11) {
-        input_product = 1;
+        product = 1;
         input_len = 0;
         input_str[0] = 0;
     }
@@ -577,7 +580,7 @@ void check_factor_solution() {
         if (enemy[i].state == 1 && enemy[i].ptn == NUM) {
              
              // 判定: 入力積が敵の数字と一致するかチェック
-             if (input_product == enemy[i].life) {
+             if (product == enemy[i].life) {
                 
                 //好きな動作にする現在はlife++
                 player.life = (player.life < 9) ? player.life + 1 : 9;
@@ -588,7 +591,7 @@ void check_factor_solution() {
     }
 }
 
-void draw_input_formula() {
+void drawFormula() {
     // 画面下部のY=7行目に表示
     for(int i = 0; i < input_len; i++) {
         lcd_putc(7, i, input_str[i]);
