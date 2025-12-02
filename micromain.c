@@ -33,6 +33,10 @@ void lcd_init();
 void lcd_putc(int y, int x, int c);
 void lcd_sync_vbuf();
 void lcd_clear_vbuf();
+int key_pad_scan();
+void handle_key_input();
+void check_factor_solution();
+void drawFormula();
 enum { ENE_BULLET, ENE_BOSS , NUM };  //敵の種類
 enum { NORMAL, SHOTGUN, BEAM, HEART };  //アイテム？とか
 enum { INIT, OPENING, PLAY, CLEAR, OVER };  //状態
@@ -42,6 +46,9 @@ int shotType = NORMAL;
 static int seed = 23;
 static int timer = 0;
 int startPowerUp = 0;
+static int product = 1;
+int input_len = 0;
+char input_str[16] = {0};
 
 struct OBJECT
 {
@@ -87,9 +94,9 @@ void interrupt_handler() {
                 int val = enemy[i].life;
                 if (val >= 10) {
                     drawImg(enemy[i].x, enemy[i].y, '0' + val / 10);
-                    drawImg(enemy[i].x + 8, enemy[i].y + 8, '0' + val % 10);
+                    drawImg(enemy[i].x + 8, enemy[i].y, '0' + val % 10);
                 } else {
-                    drawImg(enemy[i].x + 8, enemy[i].y + 8, '0' + val);
+                    drawImg(enemy[i].x, enemy[i].y, '0' + val);
                 }
                 
             }
@@ -217,7 +224,7 @@ void setBullet()
 {
     int base_x = player.x + player.wid;
     int base_y = player.y + player.hei / 2;
-    if (shotType == NORMAL) {
+    if (shotType == NORMAL) {  //通常弾
         for (int i = 0; i < BULLET_MAX; i++) {
 		    if (bullet[i].state == 0) {
 			    bullet[i].x = base_x;
@@ -230,7 +237,7 @@ void setBullet()
 			    break;
 		    }
 	    }
-    } else if (shotType == SHOTGUN) {
+    } else if (shotType == SHOTGUN) {  //ショットガン
         int bulletAngleNum = 3;
         for (int k = 0; k < bulletAngleNum; k++) {
             for (int i = 0; i < BULLET_MAX; i++) {
@@ -265,7 +272,7 @@ int setEnemy(int x, int y, int vx, int vy, char img, int life,int ptn, int wid, 
 {
 	
 	for (int i = 0; i < ENE_MAX; i++) {
-		if (enemy[i].state == 0 && ptn == ENE_BULLET) {
+		if (enemy[i].state == 0 && ptn == ENE_BULLET) {  //敵の球をセット
 			enemy[i].x = x;
 			enemy[i].y = y;
 			enemy[i].vx = vx;
@@ -301,7 +308,7 @@ void moveEnemy()
 		if (enemy[i].ptn == ENE_BULLET || enemy[i].ptn == NUM) {
 			enemy[i].x -= enemy[i].vx;  //とりあえずx軸のみ移動
 		}
-		if (enemy[i].x < 0) enemy[i].state = 0;
+		if (enemy[i].x + enemy[i].wid < 0) enemy[i].state = 0;
 	}
 }
 
@@ -339,7 +346,7 @@ void moveItem()
 
 void hitCheck()
 {
-	//ボスの弾と自分のあたり判定
+	//ボスの弾と自分のあたり判定(数も含む)
 	for (int i = 0;i < ENE_MAX; i++) {
 		if (enemy[i].state == 0) continue;
 		int dx = enemy[i].x - player.x;
@@ -482,4 +489,108 @@ void lcd_puts(int y, int x, char *str) {
                         break;
                 else
                         lcd_putc(y, i, str[i]);
+}
+
+int key_pad_scan()
+{
+    const int key_map[4][4] = {
+        { 13, 14, 15, 16},
+        { 12,  9,  8,  7},
+        { 11,  6,  5,  4},
+        { 10,  3,  2,  1}
+    };
+
+    int scan_pattern[4] = {0xE, 0xD, 0xB, 0x7}; 
+    volatile int *keypad_addr = (int *)0xff18; // ADDR_KEYPAD の代わりにアドレスを直接使用
+    
+    for (int col = 0; col < 4; col++) {
+        *keypad_addr = scan_pattern[col]; // ① 列線にスキャンパターンを出力
+
+        for(volatile int w=0; w<100; w++); // ② 安定化のための短いウェイト
+
+        int input_data = *keypad_addr;
+        int rows = input_data & 0xF; // ③ 下位4ビット（行入力）を取得
+
+        // ④ 行線をチェックして押されたキーを特定
+        if ((rows & 0x1) == 0) return key_map[col][0];
+        if ((rows & 0x2) == 0) return key_map[col][1];
+        if ((rows & 0x4) == 0) return key_map[col][2];
+        if ((rows & 0x8) == 0) return key_map[col][3];
+    }
+    return -1; // どのキーも押されていない場合
+}
+
+void handle_keypad_input() {
+    static int prev_key = -1;
+    int key = keypad_scan();
+
+    if (key == prev_key) return;  // 押しっぱなし防止
+    prev_key = key;
+
+    if (key == -1) return;
+    
+    // ターゲットがアクティブでなければ判定を行わない
+    if (state != PLAY) return;
+
+    /* ===== 数字キー（素因数）===== */
+    if (key >= 2 && key <= 9) { 
+        // 配列境界チェック 
+        if (input_len + 2 < 16) { 
+            input_product *= key;
+
+            input_str[input_len++] = '0' + key; 
+            input_str[input_len++] = 'x'; 
+            input_str[input_len]   = 0;
+        }
+    }
+
+    /* ===== Aキー (テンキーで10) → 判定 / ライフ増加 ===== */
+    if (key == 10) {   
+        // 最後の 'x' を削除
+        if (input_len > 0 && input_str[input_len-1] == 'x') {
+             input_len--;
+        }
+        
+        // 素因数分解の成功判定を実行
+        check_factor_solution(); 
+
+        // 入力リセット
+        input_product = 1;
+        input_len = 0;
+        input_str[0] = 0;
+    }
+
+    /* ===== Bキー → 全消去 (テンキーで11) ===== */
+    if (key == 11) {
+        input_product = 1;
+        input_len = 0;
+        input_str[0] = 0;
+    }
+}
+
+void check_factor_solution() {
+    // ターゲットがアクティブでなければ判定を行わない
+    if (state != PLAY) return;
+    
+    // --- 素因数分解判定ロジック ---
+    for (int i = 0; i < ENE_MAX; i++) {
+        if (enemy[i].state == 1 && enemy[i].ptn == NUM) {
+             
+             // 判定: 入力積が敵の数字と一致するかチェック
+             if (input_product == enemy[i].life) {
+                
+                //好きな動作にする現在はlife++
+                player.life = (player.life < 9) ? player.life + 1 : 9;
+                enemy[i].state = 0;  //ターゲット消滅
+                return; 
+             }
+        }
+    }
+}
+
+void draw_input_formula() {
+    // 画面下部のY=7行目に表示
+    for(int i = 0; i < input_len; i++) {
+        lcd_putc(7, i, input_str[i]);
+    }
 }
