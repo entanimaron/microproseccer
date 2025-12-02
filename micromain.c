@@ -1,6 +1,7 @@
 /* Do not remove the following line. Do not remove interrupt_handler(). */
 #include "crt0.c"
 #include "ChrFont0.h"
+#include "micro.h"
 #define BULLET_MAX 100
 #define ENE_MAX 100
 #define WIDTH 96
@@ -9,34 +10,8 @@
 #define MAX_Y 7
 #define ENCODER_BASE 0.1
 char boss_img = 'B';
-char item_img = 'I'；
-int playGame();  //ゲームをする関数
-void initGame();  //ゲームを初期化する関数
-void initVariable();  //変数を初期化する関数
-void movePlayer();  //playerの動きを定義する関数
-void setBullet();  //弾をセットする関数
-void moveBullet();  //弾の動きを決める関数
-int setEnemy(int x, int y, int vx, int vy, char img, int life, int ptn, int wid, int hei);  //敵をセットする関数
-void moveEnemy();  //敵(今は弾)の動きを決める関数
-void setItem();  //アイテムをセットする感ん数
-void moveItem();  //アイテムの動きを決める関数、ゲットした時の動作も決める
-void drawImg(int x, int y, char img);  //imgを描画
-void hitCheck();  //当たり判定を確認する関数
-int myRand();  //rand関数
-int createNum();  //合成数生成
-int  btn_check_0();
-int  btn_check_1();
-int  btn_check_3();
-void led_set(int data);
-void led_blink();
-void lcd_init();
-void lcd_putc(int y, int x, int c);
-void lcd_sync_vbuf();
-void lcd_clear_vbuf();
-int key_pad_scan();
-void handle_key_input();
-void check_factor_solution();
-void drawFormula();
+char item_img = 'I';
+
 enum { ENE_BULLET, ENE_BOSS , NUM };  //敵の種類
 enum { NORMAL, SHOTGUN, BEAM, HEART };  //アイテム？とか
 enum { INIT, OPENING, PLAY, CLEAR, OVER };  //状態
@@ -50,20 +25,6 @@ static int product = 1;
 int input_len = 0;
 char input_str[16] = {0};
 
-struct OBJECT
-{
-	int x;
-	int y;
-	int vx;
-	int vy;
-	char img;
-	int  wid;
-	int hei;
-	int life;
-	int state;
-	int ptn;
-    int timer;
-};
 
 struct OBJECT player;  //プレイヤー
 struct OBJECT bullet[BULLET_MAX];  //自分が打つ弾
@@ -330,11 +291,41 @@ void moveItem()
     if (item.state == 0) return;
     item.x -= item.vx;
     item.y -= item.vy;  //今のところ0
-    int dx = (item.x + item.wid / 2) - (player.x + player.wid / 2);
-    int dy = (item.y + item.hei / 2) - (player.y + player.hei / 2);
+}
+
+void hitCheck()
+{
+	//ボスの弾と自分のあたり判定(数も含む)
+	for (int i = 0;i < ENE_MAX; i++) {
+		if (enemy[i].state == 0) continue;
+		int dx = (enemy[i].x + enemy[i].wid / 2) - (player.x + player.wid / 2);
+		int dy = (enemy[i].y + enemy[i].hei / 2) - (player.y + player.hei / 2);
+		if (dx < 0) dx *= -1;
+		if (dy < 0) dy *= -1;
+		if (dx <= (player.wid + enemy[i].wid) / 2 && dy <= (player.hei + enemy[i].hei) / 2) {
+			player.life--;
+			enemy[i].state = 0;
+            break;
+		}
+	}
+	//ボスと自分の弾のあたり判定
+	for (int i = 0; i < BULLET_MAX; i++) {
+		if (bullet[i].state == 0) continue;
+		int dx = (boss.x + boss.wid / 2) - (bullet[i].x + bullet[i].wid / 2);
+		int dy = (boss.y + boss.hei / 2) - (bullet[i].y + bullet[i].hei / 2);
+		if (dx < 0) dx *= -1;
+		if (dy < 0) dy *= -1;
+		if (dx <=  (boss.wid + bullet[i].wid) / 2 && dy <= (boss.hei + bullet[i].hei) / 2) {
+            boss.life--;
+            bullet[i].state = 0;
+            break;
+        }
+	}
+
+    if (item.x + item.wid < 0) item.state = 0;
     if (dx < 0) dx *= -1;
     if (dy < 0) dy *= -1;
-    if (dx < (item.wid + player.wid) / 2 && dy < (item.hei + player.hei) / 2) {
+    if (dx <= (item.wid + player.wid) / 2 && dy <= (item.hei + player.hei) / 2) {
         item.ptn = 1;  //本来ならtimerでshotgun,beamのどちらか抽選
         startPowerUp = timer;
         if (item.ptn == SHOTGUN) {
@@ -344,49 +335,8 @@ void moveItem()
         }
         item.state = 0;
     }
-    
 }
 
-void hitCheck()
-{
-	//ボスの弾と自分のあたり判定(数も含む)
-	for (int i = 0;i < ENE_MAX; i++) {
-		if (enemy[i].state == 0) continue;
-		int dx = enemy[i].x - player.x;
-		int dy = enemy[i].y - player.y;
-		if (dx < 0) dx *= -1;
-		if (dy < 0) dy *= -1;
-		if (dx < 8 && dy < 8) {
-			player.life--;
-			enemy[i].state = 0;
-            break;
-		}
-	}
-	//ボスと自分の弾のあたり判定
-	for (int i = 0; i < BULLET_MAX; i++) {
-		if (bullet[i].state == 0) continue;
-		int dx = boss.x + boss.wid / 2 - (bullet[i].x + bullet[i].wid / 2);
-		int dy = boss.y + boss.hei / 2 - (bullet[i].y + bullet[i].hei / 2);
-		if (dx < 0) dx *= -1;
-		if (dy < 0) dy *= -1;
-		if (dx <  (boss.wid + bullet[i].wid) / 2 && dy < (boss.hei + bullet[i].hei) / 2) {
-            boss.life--;
-            bullet[i].state = 0;
-            break;
-        }
-	}
-}
-
-int myRand()
-{
-    seed = (11 * seed + 16) % 256;
-    return seed;
-}
-
-int createNum()
-{
-    return (myRand() % 7 + 2) * (myRand() % 7 + 2);
-}
 
  /*
  * Switch functions
