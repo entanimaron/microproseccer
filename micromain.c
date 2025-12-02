@@ -388,12 +388,14 @@ void lcd_wait(int n) {
 	/* Not implemented yet */
 	for (int i = 0; i < n; i++);
 }
+
 void lcd_cmd(unsigned char cmd) {
 	/* Not implemented yet */
 	volatile int *lcd_ptr = (int *)0xff0c;
         *lcd_ptr = cmd;
         lcd_wait(1000);
 }
+
 void lcd_data(unsigned char data) {
 	/* Not implemented yet */
 	volatile int *lcd_ptr = (int *)0xff0c;
@@ -406,6 +408,7 @@ void lcd_pwr_on() {
         *lcd_ptr = 0x200;
         lcd_wait(700000);
 }
+
 void lcd_init() {
 	/* Not implemented yet */
 	lcd_pwr_on();   /* Display power ON */
