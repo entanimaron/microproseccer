@@ -9,6 +9,7 @@
 #define MAX_Y 7
 #define ENCODER_BASE 0.1
 char boss_img = 'B';
+char item_img = 'I'
 int playGame();  //ゲームをする関数
 void initGame();  //ゲームを初期化する関数
 void initVariable();  //変数を初期化する関数
@@ -22,6 +23,7 @@ void moveItem();  //アイテムの動きを決める関数、ゲットした時
 void drawImg(int x, int y, char img);  //imgを描画
 void hitCheck();  //当たり判定を確認する関数
 int myRanf();
+int createNum();
 int  btn_check_0();
 int  btn_check_1();
 int  btn_check_3();
@@ -85,6 +87,10 @@ void interrupt_handler() {
                     drawImg(boss.x + c * 8, boss.y + r * 8, boss.img); 
                 }
             }
+        }
+
+        if (item.state == 1) {
+            drawImg(item.x, item.y, item_img);
         }
 		
 	    if (cnt % 10 == 0) {
@@ -333,6 +339,11 @@ int myRand()
 {
     seed = (11 * seed + 16) % 256;
     return seed;
+}
+
+int createNum()
+{
+    return (myRand() % 7 + 2) * (myRand() % 7 + 2);
 }
 
  /*
