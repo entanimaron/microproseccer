@@ -22,8 +22,8 @@ void setItem();  //アイテムをセットする感ん数
 void moveItem();  //アイテムの動きを決める関数、ゲットした時の動作も決める
 void drawImg(int x, int y, char img);  //imgを描画
 void hitCheck();  //当たり判定を確認する関数
-int myRanf();
-int createNum();
+int myRand();  //rand関数
+int createNum();  //合成数生成
 int  btn_check_0();
 int  btn_check_1();
 int  btn_check_3();
@@ -248,7 +248,7 @@ int setEnemy(int x, int y, int vx, int vy, char img, int life,int ptn, int wid, 
 {
 	
 	for (int i = 0; i < ENE_MAX; i++) {
-		if (enemy[i].state == 0) {
+		if (enemy[i].state == 0 && img = '*') {
 			enemy[i].x = x;
 			enemy[i].y = y;
 			enemy[i].vx = vx;
@@ -260,7 +260,9 @@ int setEnemy(int x, int y, int vx, int vy, char img, int life,int ptn, int wid, 
 			enemy[i].hei = hei;
 			enemy[i].state = 1;
 			return i;
-		}
+		} else if (enemy[i].state == 0 && img = 'n') {
+
+        }
 	}
 	return -1;
 }
