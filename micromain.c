@@ -47,6 +47,7 @@ struct OBJECT item;  //アイテム
 
 /* interrupt_handler() is called every 100msec */
 void interrupt_handler() {
+    handle_key_input();
 	lcd_clear_vbuf();
 	static int cnt;
 	if (state == INIT) {
