@@ -33,9 +33,9 @@ void lcd_init();
 void lcd_putc(int y, int x, int c);
 void lcd_sync_vbuf();
 void lcd_clear_vbuf();
-enum { ENE_BULLET, ENE_BOSS , NUM };
-enum { NORMAL, SHOTGUN, BEAM, HEART };
-enum { INIT, OPENING, PLAY, CLEAR, OVER };
+enum { ENE_BULLET, ENE_BOSS , NUM };  //敵の種類
+enum { NORMAL, SHOTGUN, BEAM, HEART };  //アイテム？とか
+enum { INIT, OPENING, PLAY, CLEAR, OVER };  //状態
 int state = INIT, pos = 0;
 int rte_prev = 128;
 int shotType = NORMAL;
@@ -58,11 +58,11 @@ struct OBJECT
     int timer;
 };
 
-struct OBJECT player;
-struct OBJECT bullet[BULLET_MAX];
-struct OBJECT enemy[ENE_MAX];
-struct OBJECT boss;
-struct OBJECT item;
+struct OBJECT player;  //プレイヤー
+struct OBJECT bullet[BULLET_MAX];  //自分が打つ弾
+struct OBJECT enemy[ENE_MAX];  //敵の弾or数字
+struct OBJECT boss;  //ボス
+struct OBJECT item;  //アイテム
 
 /* interrupt_handler() is called every 100msec */
 void interrupt_handler() {
@@ -83,10 +83,10 @@ void interrupt_handler() {
             if (enemy[i].state == 0) continue;
             if (enemy[i].ptn == ENE_BULLET) {
                 drawImg(enemy[i].x, enemy[i].y, enemy[i].img);
-            } else if (enemy[i].ptn == NUM) {
+            } else if (enemy[i].ptn == NUM) {  //数字の表示
                 int val = enemy[i].life;
                 if (val >= 10) {
-                    drawImg(enemy[i].x, enemy[i].y, (char)(val / 10));
+                    drawImg(enemy[i].x, enemy[i].y, '0' + val / 10);
                     drawImg(enemy[i].x + 8, enemy[i].y + 8, '0' + val % 10);
                 } else {
                     drawImg(enemy[i].x + 8, enemy[i].y + 8, '0' + val);
@@ -107,13 +107,14 @@ void interrupt_handler() {
             drawImg(item.x, item.y, item_img);
         }
 		
-	    if (cnt % 10 == 0) {
+	    if (cnt % 10 == 0) {  //敵のセット　playGame()の方がいい?
 			setEnemy(90, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
 			setEnemy(86, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
-		} else if (cnt % 30 == 0 && cnt > 1) {
+		} else if (cnt % 30 == 0 && cnt > 1) {  //数字のセット
             setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);
         }
 		cnt++;
+        //ライフの表示 LEDにしたい
 		lcd_putc(7, 0, 'L');
         lcd_putc(7, 1, 'I');
         lcd_putc(7, 2, 'F');
@@ -297,7 +298,7 @@ void moveEnemy()
 {
 	for (int i = 0; i < ENE_MAX; i++) {
 		if (enemy[i].state == 0) continue;
-		if (enemy[i].ptn == ENE_BULLET) {
+		if (enemy[i].ptn == ENE_BULLET || enemy[i].ptn == NUM) {
 			enemy[i].x -= enemy[i].vx;  //とりあえずx軸のみ移動
 		}
 		if (enemy[i].x < 0) enemy[i].state = 0;
