@@ -33,9 +33,9 @@ void lcd_init();
 void lcd_putc(int y, int x, int c);
 void lcd_sync_vbuf();
 void lcd_clear_vbuf();
-enum { ENE_BULLET, ENE_BOSS};
-enum { NORMAL, SHOTGUN, BEAM};
-enum { INIT, OPENING, PLAY, CLEAR, OVER};
+enum { ENE_BULLET, ENE_BOSS };
+enum { NORMAL, SHOTGUN, BEAM, HEART };
+enum { INIT, OPENING, PLAY, CLEAR, OVER };
 int state = INIT, pos = 0;
 int rte_prev = 128;
 int shotType = NORMAL;
@@ -146,6 +146,7 @@ int playGame() {
         boss.state = 1;
         boss.img = boss_img;
 	}
+    if (btn_check_0()) setBullet();
 	if (item.state == 0 && timer % 600 == 1) setItem();
     if (shotType != NORMAL && timer - startPowerUp >= 100) shotType = NORMAL;
 	moveBullet();
@@ -189,10 +190,10 @@ void movePlayer()
 	int rte_current = (*rte_ptr) >> 2;
 	int diff = rte_current - rte_prev;
 	rte_prev = rte_current;
-	player.y += diff * ENCODER_BASE * player.vy;
+	player.y += diff * ENCODER_BASE * player.vy / 8;
 	if (player.y < 0) player.y = 0;
 	if (player.y > HEIGHT - player.hei) player.y = HEIGHT - player.hei;
-	if (btn_check_0()) setBullet(); 
+	 
 }
 
 void setBullet()
@@ -299,6 +300,8 @@ void moveItem()
         startPowerUp = timer;
         if (item.ptn == SHOTGUN) {
             shotType = SHOTGUN;
+        } else if (item.ptn == HEART) {
+            player.life++;
         }
         item.state = 0;
     }
