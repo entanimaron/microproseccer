@@ -33,7 +33,7 @@ void lcd_init();
 void lcd_putc(int y, int x, int c);
 void lcd_sync_vbuf();
 void lcd_clear_vbuf();
-enum { ENE_BULLET, ENE_BOSS };
+enum { ENE_BULLET, ENE_BOSS , NUM };
 enum { NORMAL, SHOTGUN, BEAM, HEART };
 enum { INIT, OPENING, PLAY, CLEAR, OVER };
 int state = INIT, pos = 0;
@@ -42,6 +42,7 @@ int shotType = NORMAL;
 static int seed = 23;
 static int timer = 0;
 int startPowerUp = 0;
+
 struct OBJECT
 {
 	int x;
@@ -62,6 +63,7 @@ struct OBJECT bullet[BULLET_MAX];
 struct OBJECT enemy[ENE_MAX];
 struct OBJECT boss;
 struct OBJECT item;
+
 /* interrupt_handler() is called every 100msec */
 void interrupt_handler() {
 	lcd_clear_vbuf();
@@ -73,13 +75,25 @@ void interrupt_handler() {
 	} else if (state == PLAY) {
 		//描画
 		drawImg(player.x, player.y, player.img);
-		for (int i = 0; i < BULLET_MAX; i++) {
+		for (int i = 0; i < BULLET_MAX; i++) {  //自分の撃った弾の表示
 			if (bullet[i].state == 0) continue;
 			drawImg(bullet[i].x, bullet[i].y, '-');
 		}
-		for (int i = 0; i < ENE_MAX; i++) {
+		for (int i = 0; i < ENE_MAX; i++) {  //敵の表示
             if (enemy[i].state == 0) continue;
-            drawImg(enemy[i].x, enemy[i].y, enemy[i].img);
+            if (enemy[i].ptn == ENE_BULLET) {
+                drawImg(enemy[i].x, enemy[i].y, enemy[i].img);
+            } else if (enemy[i].ptn == NUM) {
+                int val = enemy[i].life;
+                if (val >= 10) {
+                    drawImg(enemy[i].x, enemy[i].y, (char)(val / 10));
+                    drawImg(enemy[i].x + 8, enemy[i].y + 8, '0' + val % 10);
+                } else {
+                    drawImg(enemy[i].x + 8, enemy[i].y + 8, '0' + val);
+                }
+                
+            }
+            
         }
 		if (boss.state == 1) { 
             for (int r = 0; r < 3; r++) { // 行 (Y)
@@ -96,7 +110,9 @@ void interrupt_handler() {
 	    if (cnt % 10 == 0) {
 			setEnemy(90, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
 			setEnemy(86, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
-		}
+		} else if (cnt % 30 == 0 && cnt > 1) {
+            setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);
+        }
 		cnt++;
 		lcd_putc(7, 0, 'L');
         lcd_putc(7, 1, 'I');
@@ -113,6 +129,7 @@ void interrupt_handler() {
 	}
 	lcd_sync_vbuf();
 }
+
 void main() {
 	while (1) {
 		if (state == INIT) {
@@ -133,8 +150,8 @@ void main() {
 		}
 	}
 }
-int playGame() {
 
+int playGame() {
 	if (player.life < 1) return 1;
 	if (boss.life < 1) return 0;
 	if (boss.state == 0 && player.life > 0) {
@@ -148,6 +165,7 @@ int playGame() {
 	}
     if (btn_check_0()) setBullet();
 	if (item.state == 0 && timer % 600 == 1) setItem();
+
     if (shotType != NORMAL && timer - startPowerUp >= 100) shotType = NORMAL;
 	moveBullet();
 	movePlayer();
@@ -166,8 +184,6 @@ void drawImg(int x, int y, char img) {
 	}
 
 }
-
-
 
 void initVariable()
 {
@@ -190,7 +206,7 @@ void movePlayer()
 	int rte_current = (*rte_ptr) >> 2;
 	int diff = rte_current - rte_prev;
 	rte_prev = rte_current;
-	player.y += diff * ENCODER_BASE * player.vy / 8;
+	player.y += diff * ENCODER_BASE * player.vy;
 	if (player.y < 0) player.y = 0;
 	if (player.y > HEIGHT - player.hei) player.y = HEIGHT - player.hei;
 	 
@@ -248,7 +264,7 @@ int setEnemy(int x, int y, int vx, int vy, char img, int life,int ptn, int wid, 
 {
 	
 	for (int i = 0; i < ENE_MAX; i++) {
-		if (enemy[i].state == 0 && img = '*') {
+		if (enemy[i].state == 0 && ptn == ENE_BULLET) {
 			enemy[i].x = x;
 			enemy[i].y = y;
 			enemy[i].vx = vx;
@@ -260,8 +276,18 @@ int setEnemy(int x, int y, int vx, int vy, char img, int life,int ptn, int wid, 
 			enemy[i].hei = hei;
 			enemy[i].state = 1;
 			return i;
-		} else if (enemy[i].state == 0 && img = 'n') {
-
+		} else if (enemy[i].state == 0 && ptn == NUM) {  //数字を撃ち出す
+            enemy[i].x = x;
+			enemy[i].y = y;
+			enemy[i].vx = vx;
+			enemy[i].vy = vy;
+			enemy[i].life = life;  //面倒なのでlifeを打ち出す数とする
+			enemy[i].img = img;
+			enemy[i].ptn = ptn;
+			enemy[i].wid = wid;
+			enemy[i].hei = hei;
+			enemy[i].state = 1;
+            return i;
         }
 	}
 	return -1;
@@ -272,7 +298,7 @@ void moveEnemy()
 	for (int i = 0; i < ENE_MAX; i++) {
 		if (enemy[i].state == 0) continue;
 		if (enemy[i].ptn == ENE_BULLET) {
-			enemy[i].x -= enemy[i].vx;
+			enemy[i].x -= enemy[i].vx;  //とりあえずx軸のみ移動
 		}
 		if (enemy[i].x < 0) enemy[i].state = 0;
 	}
