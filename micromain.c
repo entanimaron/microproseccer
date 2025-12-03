@@ -6,9 +6,12 @@
 #define ENE_MAX 100
 #define WIDTH 96
 #define HEIGHT 64
-#define RTE_ADDR 0xff12
+#define RTE_ADDR 0xff14
 #define MAX_Y 7
-#define ENCODER_BASE 0.1
+#define ENCODER_BASE_M 100
+#define ENCODER_BASE_F 10
+#define FIXED_POINT_SHIFT 1000
+#define FIXED_POINT_DIVISOR 100
 char boss_img = 'B';
 char item_img = 'I';
 static int prev_fire_button = 0;
@@ -21,7 +24,8 @@ int startPowerUp = 0;
 static int product = 1;
 int input_len = 0;
 char input_str[16] = {0};
-
+static int cnt = 0;
+static int opening_start_time = 0;
 struct OBJECT player;  //プレイヤー
 struct OBJECT bullet[BULLET_MAX];  //自分が打つ弾
 struct OBJECT enemy[ENE_MAX];  //敵の弾or数字
@@ -32,10 +36,10 @@ struct OBJECT item;  //アイテム
 void interrupt_handler() {
     handle_key_input();
 	lcd_clear_vbuf();
-	static int cnt;
+
 	if (state == INIT) {
 	} else if (state == OPENING) {
-		cnt = 0;
+		lcd_puts(3, 4, "MIPS SHMUP");
 		//描画
 	} else if (state == PLAY) {
 		//描画
@@ -72,14 +76,9 @@ void interrupt_handler() {
             drawImg(item.x, item.y, item_img);
         }
 		
-	    if (cnt % 10 == 0) {  //敵のセット　playGame()の方がいい?
-			setEnemy(90, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
-			setEnemy(86, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
-		} else if (cnt % 30 == 0 && cnt > 1) {  //数字のセット
-            setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);
-        }
+	    
 		cnt++;
-        draw_input_formula();
+        drawFormula();
         //ライフの表示 LEDにしたい
 		lcd_putc(7, 0, 'L');
         lcd_putc(7, 1, 'I');
@@ -100,9 +99,13 @@ void interrupt_handler() {
 void main() {
 	while (1) {
 		if (state == INIT) {
+			led_set(0xF); // すべてのLEDを点灯
 			lcd_init();
 			state = OPENING; 
+			opening_start_time = 0;
 		} else if (state == OPENING) {
+			//for (int i = 0; i < 3000000; i++);
+			led_set(0x0);
 			state = PLAY;
 			initVariable();
 		} else if (state == PLAY) {
@@ -111,6 +114,7 @@ void main() {
 			if (s == 0) state = CLEAR;
 			if (s == 1) state = OVER;
 		} else if (state == CLEAR) {
+			led_set(0x0);
 			state = OPENING;
 		} else if (state == OVER) {
 			state = OPENING;
@@ -134,7 +138,12 @@ int playGame() {
     if (current_fire_button == 1 && prev_fire_button == 0) setBullet();
     prev_fire_button = current_fire_button;
 	if (item.state == 0 && timer % 600 == 1) setItem();
-
+	if (cnt % 10 == 0) {  //敵のセット　playGame()の方がいい?
+			setEnemy(90, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
+			setEnemy(86, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
+		} else if (cnt % 30 == 0 && cnt > 1) {  //数字のセット
+            setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);
+        }
     if (shotType != NORMAL && timer - startPowerUp >= 100) shotType = NORMAL;
 	moveBullet();
 	movePlayer();
@@ -175,7 +184,7 @@ void movePlayer()
 	int rte_current = (*rte_ptr) >> 2;
 	int diff = rte_current - rte_prev;
 	rte_prev = rte_current;
-	player.y += diff * ENCODER_BASE * player.vy;
+	player.y += (diff * ENCODER_BASE_F * player.vy) / FIXED_POINT_DIVISOR;
 	if (player.y < 0) player.y = 0;
 	if (player.y > HEIGHT - player.hei) player.y = HEIGHT - player.hei;
 	 
@@ -322,6 +331,8 @@ void hitCheck()
 	}
 
     if (item.x + item.wid < 0) item.state = 0;
+	int dx = (item.x + item.wid / 2) - (player.x + player.wid / 2);
+	int dy = (item.y + item.hei / 2) - (player.y + player.hei / 2); 
     if (dx < 0) dx *= -1;
     if (dy < 0) dy *= -1;
     if (dx <= (item.wid + player.wid) / 2 && dy <= (item.hei + player.hei) / 2) {
@@ -432,6 +443,12 @@ void lcd_clear_vbuf() {
 }
 void lcd_sync_vbuf() {
 	/* Not implemented yet */
+	lcd_cmd(0x15);  /* Set column address */
+    lcd_cmd(0);
+    lcd_cmd(95);
+    lcd_cmd(0x75);  /* Set row address */
+    lcd_cmd(0);
+    lcd_cmd(63);
 	for (int row = 0; row < 64; row++)
         	for (int col = 0; col < 96; col++)
             		lcd_data(lcd_vbuf[row][col]);
