@@ -12,9 +12,6 @@
 char boss_img = 'B';
 char item_img = 'I';
 
-enum { ENE_BULLET, ENE_BOSS , NUM };  //敵の種類
-enum { NORMAL, SHOTGUN, BEAM, HEART };  //アイテム？とか
-enum { INIT, OPENING, PLAY, CLEAR, OVER };  //状態
 int state = INIT, pos = 0;
 int rte_prev = 128;
 int shotType = NORMAL;
@@ -24,20 +21,6 @@ int startPowerUp = 0;
 static int product = 1;
 int input_len = 0;
 char input_str[16] = {0};
-
-void drawFormula();
-int  btn_check_0();
-int  btn_check_1();
-int  btn_check_3();
-void led_set(int data);
-void led_blink();
-void lcd_init();
-void lcd_putc(int y, int x, int c);
-void lcd_sync_vbuf();
-void lcd_clear_vbuf();
-int key_pad_scan();
-void handle_key_input();
-void check_factor_solution();
 
 struct OBJECT player;  //プレイヤー
 struct OBJECT bullet[BULLET_MAX];  //自分が打つ弾

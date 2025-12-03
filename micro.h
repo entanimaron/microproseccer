@@ -12,6 +12,9 @@ struct OBJECT
 	int ptn;
     int timer;
 };
+enum { ENE_BULLET, ENE_BOSS , NUM };  //敵の種類
+enum { NORMAL, SHOTGUN, BEAM, HEART };  //アイテム？とか
+enum { INIT, OPENING, PLAY, CLEAR, OVER };  //状態
 int playGame();  //ゲームをする関数
 void initGame();  //ゲームを初期化する関数
 void initVariable();  //変数を初期化する関数
@@ -26,3 +29,16 @@ void drawImg(int x, int y, char img);  //imgを描画
 void hitCheck();  //当たり判定を確認する関数
 int myRand();  //rand関数
 int createNum();  //合成数生成
+void drawFormula();
+int  btn_check_0();
+int  btn_check_1();
+int  btn_check_3();
+void led_set(int data);
+void led_blink();
+void lcd_init();
+void lcd_putc(int y, int x, int c);
+void lcd_sync_vbuf();
+void lcd_clear_vbuf();
+int key_pad_scan();
+void handle_key_input();
+void check_factor_solution();
