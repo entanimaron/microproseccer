@@ -18,20 +18,12 @@ module fpga_top (
     output        reg [7:0]   ioc,      // ブザー出力
     output        reg [7:0]   ioa,      // その他I/Oとして利用可能
     input             [7:0]   iob,
-    inout             [7:0]   iod
+	output  reg       [3:0]   iod_lo,
+    input             [3:0]   iod_hi
 );
 
 // MIPSとI/Oの信号線
 wire    [31:0]   pc, instr, readdata, readdata0, readdata1, writedata, dataadr, readdata5, readdata6;
-// 信号線の定義
-wire    [3:0] iod_in;
-reg     [3:0] iod_out;
-
-// iod_hi (入力)とiod_lo (出力)の割り当て
-// iod[7:4]を入力 (iod_hi)として使用
-assign iod_in[3:0] = iod[7:4];
-// iod[3:0]を出力 (iod_lo)として使用
-assign iod[3:0]    = iod_out;
 wire    [3:0]    byteen;
 wire    [9:0]    rte;
 wire             reset;
@@ -47,7 +39,7 @@ assign   reset   = btn[0] & btn[1];
 
 // ロータリーエンコーダの読み出しデータ (cs5からの読み出し)
 assign   readdata5   = {22'h0, rte}; 
-assign   readdata6 = {28'h0, iod_in};
+assign   readdata6 = {28'h0, iod_hi};
 
 /* 62.5MHz clock */
 always @ (posedge clk_125mhz)
@@ -89,9 +81,9 @@ always @ (posedge clk_62p5mhz or posedge reset)
 
 always @(posedge clk_62p5mhz) begin
     if (reset) begin
-        iod_out <= 4'b0000;
+        iod_lo <= 4'b0000;
     end else if (cs6 && memwrite) begin
-        iod_out <= writedata[3:0];
+        iod_lo <= writedata[3:0];
     end
 end
 
@@ -308,7 +300,7 @@ reg    [2:0]    cnt;   /* 8 */
 reg    [4:0]    cnt2;  /* 25 */
 reg    cs_, dc_, res_, sdo, sck, pmoden, vccen;
 
-assign   dout = {1'b0,pmoden, vccen, res_, dc_, sck, sdo, cs_};
+assign   dout = {pmoden, vccen, res_, dc_, sck, 1'b0, sdo, cs_};
 always @(posedge clk or posedge reset)
     if (reset) begin
         state   <= `SPI_WAIT;

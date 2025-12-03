@@ -6,7 +6,7 @@
 #define ENE_MAX 100
 #define WIDTH 96
 #define HEIGHT 64
-#define RTE_ADDR 0xff14
+#define RTE_ADDR 0xff18
 #define MAX_Y 7
 #define ENCODER_BASE_M 100
 #define ENCODER_BASE_F 10
@@ -101,12 +101,12 @@ void main() {
 		if (state == INIT) {
 			led_set(0xF); // すべてのLEDを点灯
 			lcd_init();
-			state = OPENING; 
+            if (key_pad_scan() == 0xd) state = OPENIG; 
 			opening_start_time = 0;
 		} else if (state == OPENING) {
 			//for (int i = 0; i < 3000000; i++);
 			led_set(0x0);
-			state = PLAY;
+			if (key_pad_scan() == 0xd) state = PLAY;
 			initVariable();
 		} else if (state == PLAY) {
             timer++;
@@ -134,8 +134,8 @@ int playGame() {
         boss.state = 1;
         boss.img = boss_img;
 	}
-    int current_fire_button = btn_check_0();
-    if (current_fire_button == 1 && prev_fire_button == 0) setBullet();
+    int current_fire_button = key_pad_scan();
+    if (current_fire_button == 0x0 && prev_fire_button != 0x0) setBullet();
     prev_fire_button = current_fire_button;
 	if (item.state == 0 && timer % 600 == 1) setItem();
 	if (cnt % 10 == 0) {  //敵のセット　playGame()の方がいい?
@@ -183,6 +183,8 @@ void movePlayer()
 	volatile int *rte_ptr = (int*)RTE_ADDR;
 	int rte_current = (*rte_ptr) >> 2;
 	int diff = rte_current - rte_prev;
+    if (diff > 128) diff -= 256;   
+    if (diff < -128) diff += 256;
 	rte_prev = rte_current;
 	player.y += (diff * ENCODER_BASE_F * player.vy) / FIXED_POINT_DIVISOR;
 	if (player.y < 0) player.y = 0;
@@ -443,12 +445,6 @@ void lcd_clear_vbuf() {
 }
 void lcd_sync_vbuf() {
 	/* Not implemented yet */
-	lcd_cmd(0x15);  /* Set column address */
-    lcd_cmd(0);
-    lcd_cmd(95);
-    lcd_cmd(0x75);  /* Set row address */
-    lcd_cmd(0);
-    lcd_cmd(63);
 	for (int row = 0; row < 64; row++)
         	for (int col = 0; col < 96; col++)
             		lcd_data(lcd_vbuf[row][col]);
@@ -471,31 +467,48 @@ void lcd_puts(int y, int x, char *str) {
 
 int key_pad_scan()
 {
-    const int key_map[4][4] = {
-        { 13, 14, 15, 16},
-        { 12,  9,  8,  7},
-        { 11,  6,  5,  4},
-        { 10,  3,  2,  1}
-    };
-
-    int scan_pattern[4] = {0xE, 0xD, 0xB, 0x7}; 
-    volatile int *keypad_addr = (int *)0xff18; // ADDR_KEYPAD の代わりにアドレスを直接使用
-    
-    for (int col = 0; col < 4; col++) {
-        *keypad_addr = scan_pattern[col]; // ① 列線にスキャンパターンを出力
-
-        for(volatile int w=0; w<100; w++); // ② 安定化のための短いウェイト
-
-        int input_data = *keypad_addr;
-        int rows = input_data & 0xF; // ③ 下位4ビット（行入力）を取得
-
-        // ④ 行線をチェックして押されたキーを特定
-        if ((rows & 0x1) == 0) return key_map[col][0];
-        if ((rows & 0x2) == 0) return key_map[col][1];
-        if ((rows & 0x4) == 0) return key_map[col][2];
-        if ((rows & 0x8) == 0) return key_map[col][3];
-    }
-    return -1; // どのキーも押されていない場合
+    volatile int *iob_ptr = (int *)0xff14;
+        *iob_ptr = 0x07;                /* 0111 */
+        for (int i = 0; i < 1; i++);    /* Wait */
+        if ((*iob_ptr & 0x80) == 0)  //1
+                return 0x1;
+        if ((*iob_ptr & 0x40) == 0)  //4
+                return 0x4;
+        if ((*iob_ptr & 0x20) == 0)  //7
+                return 0x7;
+        if ((*iob_ptr & 0x10) == 0)  //0
+                return 0x0;
+        *iob_ptr = 0x0b;                /* 1011 */
+        for (int i = 0; i < 1; i++);    /* Wait */
+        if ((*iob_ptr & 0x80) == 0)  //2
+                return 0x2;
+        if ((*iob_ptr & 0x40) == 0)  //5
+                return 0x5;
+        if ((*iob_ptr & 0x20) == 0)  //8
+                return 0x8;
+        if ((*iob_ptr & 0x10) == 0)  //F
+                return 0xf;
+        *iob_ptr = 0x0d;                /* 1101 */
+        for (int i = 0; i < 1; i++);    /* Wait */
+        if ((*iob_ptr & 0x80) == 0)  //3
+                return 0x3;
+        if ((*iob_ptr & 0x40) == 0)  //6
+                return 0x6;
+        if ((*iob_ptr & 0x20) == 0)  //9
+                return 0x9;
+        if ((*iob_ptr & 0x10) == 0)  //E
+                return 0xe;
+        *iob_ptr = 0x0e;                /* 1110 */
+        for (int i = 0; i < 1; i++);    /* Wait */
+        if ((*iob_ptr & 0x80) == 0)  //A
+                return 0xa;
+        if ((*iob_ptr & 0x40) == 0)  //B
+                return 0xb;
+        if ((*iob_ptr & 0x20) == 0)  //C
+                return 0xc;
+        if ((*iob_ptr & 0x10) == 0)  //D
+                return 0xd;
+        return -1;
 }
 
 void handle_key_input() {
