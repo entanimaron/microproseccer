@@ -11,7 +11,7 @@
 #define ENCODER_BASE 0.1
 char boss_img = 'B';
 char item_img = 'I';
-
+static int prev_fire_button = 0;
 int state = INIT, pos = 0;
 int rte_prev = 128;
 int shotType = NORMAL;
@@ -130,7 +130,9 @@ int playGame() {
         boss.state = 1;
         boss.img = boss_img;
 	}
-    if (btn_check_0()) setBullet();
+    int current_fire_button = btn_check_0();
+    if (current_fire_button == 1 && prev_fire_button == 0) setBullet();
+    prev_fire_button = current_fire_button;
 	if (item.state == 0 && timer % 600 == 1) setItem();
 
     if (shotType != NORMAL && timer - startPowerUp >= 100) shotType = NORMAL;
