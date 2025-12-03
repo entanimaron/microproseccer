@@ -315,6 +315,7 @@ void hitCheck()
 		if (dx <= (player.wid + enemy[i].wid) / 2 && dy <= (player.hei + enemy[i].hei) / 2) {
 			player.life--;
 			enemy[i].state = 0;
+            soundBuzz();
             break;
 		}
 	}
@@ -584,4 +585,9 @@ void drawFormula() {
     for(int i = 0; i < input_len; i++) {
         lcd_putc(7, i, input_str[i]);
     }
+}
+
+void soundBuzz(int ptn)
+{
+    if (ptn == ENE_BULLET) *beep_ptr = 1;
 }

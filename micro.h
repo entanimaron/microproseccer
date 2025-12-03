@@ -42,3 +42,4 @@ void lcd_clear_vbuf();
 int key_pad_scan();
 void handle_key_input();
 void check_factor_solution();
+void soundBuzz(int ptn);
