@@ -38,7 +38,7 @@ struct OBJECT item;  //アイテム
 
 /* interrupt_handler() is called every 100msec */
 void interrupt_handler() {
-    handle_key_input();
+    
 	lcd_clear_vbuf();
 
 	if (state == INIT) {
@@ -47,6 +47,10 @@ void interrupt_handler() {
 		//描画
 	} else if (state == PLAY) {
 		//描画
+        moveBullet();
+        moveEnemy();
+        moveItem();
+	    hitCheck();
 		drawImg(player.x, player.y, player.img);
 		for (int i = 0; i < BULLET_MAX; i++) {  //自分の撃った弾の表示
 			if (bullet[i].state == 0) continue;
@@ -102,6 +106,7 @@ void interrupt_handler() {
 
 void main() {
 	while (1) {
+        handle_key_input();
 		if (state == INIT) {
 			led_set(0xF); // すべてのLEDを点灯 debug
 			lcd_init();
@@ -151,11 +156,9 @@ int playGame() {
             setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);
         }
     if (shotType != NORMAL && timer - startPowerUp >= 100) shotType = NORMAL;
-	moveBullet();
-	movePlayer();
-	moveEnemy();
-    moveItem();
-	hitCheck();
+	
+	movePlayer();  //ユーザ入力のためそのまま
+	
 	return -1;
 }
 
@@ -586,8 +589,3 @@ void drawFormula() {
     }
 }
 
-void soundBuzz(int ptn)
-{   
-    volatile int *iob_ptr = (int *)0xff1c
-    if (ptn == ENE_BULLET) *beep_ptr = 1;
-}
