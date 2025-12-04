@@ -6,12 +6,16 @@
 #define ENE_MAX 100
 #define WIDTH 96
 #define HEIGHT 64
-#define RTE_ADDR 0xff18
+#define RTE_ADDR (volatile int *)0xff14
 #define MAX_Y 7
 #define ENCODER_BASE_M 100
 #define ENCODER_BASE_F 10
 #define FIXED_POINT_SHIFT 1000
 #define FIXED_POINT_DIVISOR 100
+#define ADDR_SW     ((volatile int *)0xff04)
+#define ADDR_LED    ((volatile int *)0xff08)
+#define ADDR_LCD    ((volatile int *)0xff0c)
+#define ADDR_KEYPAD ((volatile int *)0xff18)
 char boss_img = 'B';
 char item_img = 'I';
 static int prev_fire_button = 0;
@@ -99,14 +103,14 @@ void interrupt_handler() {
 void main() {
 	while (1) {
 		if (state == INIT) {
-			led_set(0xF); // すべてのLEDを点灯
+			led_set(0xF); // すべてのLEDを点灯 debug
 			lcd_init();
             if (key_pad_scan() == 0xd) state = OPENING; 
 			opening_start_time = 0;
 		} else if (state == OPENING) {
 			//for (int i = 0; i < 3000000; i++);
-			led_set(0x0);
-			
+			led_set(0x0);  //debug
+			if (key_pad_scan() == 0xE) led_set(0xF);  //debug
 			initVariable();
             if (key_pad_scan() == 0xd) state = PLAY;
 		} else if (state == PLAY) {
@@ -115,7 +119,8 @@ void main() {
 			if (s == 0) state = CLEAR;
 			if (s == 1) state = OVER;
 		} else if (state == CLEAR) {
-			led_set(0x0);
+			led_blink();  //debug
+            for (int i = 0; i < 20000; i++);  //debug
 			state = OPENING;
 		} else if (state == OVER) {
 			state = OPENING;
@@ -139,7 +144,7 @@ int playGame() {
     if (current_fire_button == 0x0 && prev_fire_button != 0x0) setBullet();
     prev_fire_button = current_fire_button;
 	if (item.state == 0 && timer % 600 == 1) setItem();
-	if (cnt % 10 == 0) {  //敵のセット　playGame()の方がいい?
+	if (cnt % 10 == 0) {  
 			setEnemy(90, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
 			setEnemy(86, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
 		} else if (cnt % 30 == 0 && cnt > 1) {  //数字のセット
@@ -181,7 +186,7 @@ void initVariable()
 
 void movePlayer()
 {
-	volatile int *rte_ptr = (int*)RTE_ADDR;
+	volatile int *rte_ptr = RTE_ADDR;
 	int rte_current = (*rte_ptr) >> 2;
 	int diff = rte_current - rte_prev;
     if (diff > 128) diff -= 256;   
@@ -474,48 +479,36 @@ void lcd_puts(int y, int x, char *str) {
 
 int key_pad_scan()
 {
-    volatile int *iob_ptr = (int *)0xff14;
-        *iob_ptr = 0x07;                /* 0111 */
-        for (int i = 0; i < 1; i++);    /* Wait */
-        if ((*iob_ptr & 0x80) == 0)  //1
-                return 0x1;
-        if ((*iob_ptr & 0x40) == 0)  //4
-                return 0x4;
-        if ((*iob_ptr & 0x20) == 0)  //7
-                return 0x7;
-        if ((*iob_ptr & 0x10) == 0)  //0
-                return 0x0;
-        *iob_ptr = 0x0b;                /* 1011 */
-        for (int i = 0; i < 1; i++);    /* Wait */
-        if ((*iob_ptr & 0x80) == 0)  //2
-                return 0x2;
-        if ((*iob_ptr & 0x40) == 0)  //5
-                return 0x5;
-        if ((*iob_ptr & 0x20) == 0)  //8
-                return 0x8;
-        if ((*iob_ptr & 0x10) == 0)  //F
-                return 0xf;
-        *iob_ptr = 0x0d;                /* 1101 */
-        for (int i = 0; i < 1; i++);    /* Wait */
-        if ((*iob_ptr & 0x80) == 0)  //3
-                return 0x3;
-        if ((*iob_ptr & 0x40) == 0)  //6
-                return 0x6;
-        if ((*iob_ptr & 0x20) == 0)  //9
-                return 0x9;
-        if ((*iob_ptr & 0x10) == 0)  //E
-                return 0xe;
-        *iob_ptr = 0x0e;                /* 1110 */
-        for (int i = 0; i < 1; i++);    /* Wait */
-        if ((*iob_ptr & 0x80) == 0)  //A
-                return 0xa;
-        if ((*iob_ptr & 0x40) == 0)  //B
-                return 0xb;
-        if ((*iob_ptr & 0x20) == 0)  //C
-                return 0xc;
-        if ((*iob_ptr & 0x10) == 0)  //D
-                return 0xd;
-        return -1;
+    // キー配置定義テーブル [列(Col)][行(Row)]
+    // Col 0: 1, 4, 7, 0
+    // Col 1: 2, 5, 8, F(15)
+    // Col 2: 3, 6, 9, E(14)
+    // Col 3: A(10), B(11), C(12), D(13)
+    const int key_map[4][4] = {
+        { 13,  14,  15,  16},  // Col 0 の時の Row 0~3 の値
+        { 12,  9,  8, 7},  // Col 1 の時の Row 0~3 の値
+        {11,  6,  5, 4},  // Col 2 の時の Row 0~3 の値
+        {10, 3, 2, 1}   // Col 3 の時の Row 0~3 の値
+    };
+    // 列スキャン用パターン (ioe_loへの出力: 負論理)
+    int scan_pattern[4] = {0xE, 0xD, 0xB, 0x7}; 
+    
+    for (int col = 0; col < 4; col++) {
+        *ADDR_KEYPAD = scan_pattern[col]; // 列を選択
+        
+        // 信号安定待ち
+        for(volatile int w=0; w<100; w++);
+        
+        int input_data = *ADDR_KEYPAD;    // 行(iod_hi)を読み取る
+        int rows = input_data & 0xF;      // 下位4bit(行)のみ抽出
+        
+        // 行がLOW(0)なら押されている
+        if ((rows & 0x1) == 0) return key_map[col][0]; // Row 0
+        if ((rows & 0x2) == 0) return key_map[col][1]; // Row 1
+        if ((rows & 0x4) == 0) return key_map[col][2]; // Row 2
+        if ((rows & 0x8) == 0) return key_map[col][3]; // Row 3
+    }
+    return -1; // 何も押されていない (0と区別するため -1 に変更)
 }
 
 void handle_key_input() {
