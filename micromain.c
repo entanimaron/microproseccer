@@ -101,7 +101,7 @@ void main() {
 		if (state == INIT) {
 			led_set(0xF); // すべてのLEDを点灯
 			lcd_init();
-            if (key_pad_scan() == 0xd) state = OPENIG; 
+            if (key_pad_scan() == 0xd) state = OPENING; 
 			opening_start_time = 0;
 		} else if (state == OPENING) {
 			//for (int i = 0; i < 3000000; i++);
@@ -434,23 +434,27 @@ void lcd_init() {
     lcd_cmd(63);
     lcd_cmd(0xaf);  /* Display ON */
 }
+
 void lcd_set_vbuf_pixel(int row, int col, int r, int g, int b) {
 	/* Not implemented yet */
 	r >>= 5; g >>= 5; b >>= 6;
     lcd_vbuf[row][col] = ((r << 5) | (g << 2) | (b << 0)) & 0xff;
 }
+
 void lcd_clear_vbuf() {
 	/* Not implemented yet */
     for (int row = 0; row < 64; row++)
             for (int col = 0; col < 96; col++)
                     lcd_vbuf[row][col] = 0;
 }
+
 void lcd_sync_vbuf() {
 	/* Not implemented yet */
 	for (int row = 0; row < 64; row++)
         	for (int col = 0; col < 96; col++)
             		lcd_data(lcd_vbuf[row][col]);
 }
+
 void lcd_putc(int y, int x, int c) {
 	/* Not implemented yet */
 	for (int v = 0; v < 8; v++)
@@ -458,6 +462,7 @@ void lcd_putc(int y, int x, int c) {
                         if ((font8x8[(c - 0x20) * 8 + h] >> v) & 0x01)
                                 lcd_set_vbuf_pixel(y * 8 + v, x * 8 + h, 0, 255, 0);
 }
+
 void lcd_puts(int y, int x, char *str) {
 	/* Not implemented yet */
 	for (int i = x; i < 12; i++)
@@ -589,6 +594,7 @@ void drawFormula() {
 }
 
 void soundBuzz(int ptn)
-{
+{   
+    volatile int *iob_ptr = (int *)0xff1c
     if (ptn == ENE_BULLET) *beep_ptr = 1;
 }
