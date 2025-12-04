@@ -106,8 +106,9 @@ void main() {
 		} else if (state == OPENING) {
 			//for (int i = 0; i < 3000000; i++);
 			led_set(0x0);
-			if (key_pad_scan() == 0xd) state = PLAY;
+			
 			initVariable();
+            if (key_pad_scan() == 0xd) state = PLAY;
 		} else if (state == PLAY) {
             timer++;
 			int s = playGame();
@@ -525,7 +526,7 @@ void handle_key_input() {
     if (state != PLAY) return;
 
     /* ===== 数字キー（素因数）===== */
-    if (key >= 2 && key <= 9) { 
+    if (key >= 0x2 && key <= 0x9) { 
         // 配列境界チェック 
         if (input_len + 2 < 16) { 
             product *= key;
@@ -537,7 +538,7 @@ void handle_key_input() {
     }
 
     /* ===== Aキー (テンキーで10) → 判定 / ライフ増加 ===== */
-    if (key == 10) {   
+    if (key == 0xa) {   
         // 最後の 'x' を削除
         if (input_len > 0 && input_str[input_len-1] == 'x') {
              input_len--;
@@ -553,7 +554,7 @@ void handle_key_input() {
     }
 
     /* ===== Bキー → 全消去 (テンキーで11) ===== */
-    if (key == 11) {
+    if (key == 0xb) {
         product = 1;
         input_len = 0;
         input_str[0] = 0;
