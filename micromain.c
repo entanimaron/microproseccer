@@ -44,7 +44,7 @@ void interrupt_handler() {
 	if (state == INIT) {
         lcd_puts(3, 4, "PUSH D!");
 	} else if (state == OPENING) {
-		lcd_puts(3, 4, "MIPS SHMUP");
+		lcd_puts(3, 4, "MIPS-SHMUP");
 		//描画
 	} else if (state == PLAY) {
 		//描画
@@ -83,11 +83,13 @@ void interrupt_handler() {
                     drawImg(boss.x + c * 8, boss.y + r * 8, 'B'); 
                 }
             }
-            drawImg(64, 80,'B');  //debug
+            lcd_putc(10, 8,'B');  //debug
+            drawImg(boss.x + 32, boss.y + 8, 'B');  //debug
+
         }
 
         if (item.state == 1) {
-            lcd_putc(item.y / 8, item.x / 8, item_img);
+            lcd_putc(item.y / 8, item.x / 8, 'I');
         }
 		
 	    
@@ -102,10 +104,10 @@ void interrupt_handler() {
         
 	} else if (state == CLEAR) {
 		//描画
-		lcd_puts(0, 4, "GAME CLEAR!");
+		lcd_puts(0, 4, "GAME-CLEAR!");
 	} else if (state == OVER) {
 		//描画
-		lcd_puts(0, 4, "GAME OVER!");
+		lcd_puts(0, 4, "GAME-OVER!");
 	}
 	lcd_sync_vbuf();
 }
@@ -210,7 +212,7 @@ void movePlayer()
 	player.y += (diff * ENCODER_BASE_F * player.vy) / FIXED_POINT_DIVISOR;
 	if (player.y < 0) player.y = 0;
 	if (player.y > HEIGHT - player.hei) player.y = HEIGHT - player.hei;
-	 
+	player.y = (player.y / 8) * 8;
 }
 
 void setBullet()
@@ -315,6 +317,7 @@ void setItem()
     item.wid = 8;
     item.hei = 8;
     item.timer = 0;
+    item.img = 'I';  //debug
 }
 
 void moveItem()
@@ -360,7 +363,7 @@ void hitCheck()
     if (dx < 0) dx *= -1;
     if (dy < 0) dy *= -1;
     if (dx < (item.wid + player.wid) / 2 && dy < (item.hei + player.hei) / 2) {
-        item.ptn = 1;  //本来ならtimerでshotgun,beamのどちらか抽選
+        item.ptn = SHOTGUN;  //本来ならtimerでshotgun,beamのどちらか抽選
         startPowerUp = timer;
         if (item.ptn == SHOTGUN) {
             shotType = SHOTGUN;
@@ -485,7 +488,7 @@ void lcd_putc(int y, int x, int c) {
 
 void lcd_puts(int y, int x, char *str) {
 	/* Not implemented yet */
-	for (int i = x; i < 12; i++)
+	for (int i = 0; str[i] != '\0'; i++)
                 if (str[i] < 0x20 || str[i] > 0x7f)
                         break;
                 else
