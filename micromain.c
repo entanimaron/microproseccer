@@ -63,9 +63,11 @@ void interrupt_handler() {
                 drawImg(enemy[i].x, enemy[i].y, enemy[i].img);
             } else if (enemy[i].ptn == NUM) {  //数字の表示
                 int val = enemy[i].life;
+                int draw_num_x = (enemy[i].x / 8) * 8;
+                int draw_num_y = (enemy[i].y / 8) * 8;
                 if (val >= 10) {
-                    drawImg(enemy[i].x, enemy[i].y, '0' + val / 10);
-                    drawImg(enemy[i].x + 8, enemy[i].y, '0' + val % 10);
+                    drawImg(draw_num_x, draw_num_y, '0' + val / 10);
+                    drawImg(draw_num_x + 8, draw_num_y, '0' + val % 10);
                 } else {
                     drawImg(enemy[i].x, enemy[i].y, '0' + val);
                 }
@@ -74,11 +76,14 @@ void interrupt_handler() {
             
         }
 		if (boss.state == 1) {  //ボスの表示
+            int draw_boss_x = (boss.x / 8) * 8;  //グリッドになおすため
+            int draw_boss_y = (boss.y / 8) * 8;  //グリッドになおすため
             for (int r = 0; r < 3; r++) { // 行 (Y)
                 for (int c = 0; c < 3; c++) { // 列 (X)
-                    drawImg(boss.x + c * 8, boss.y + r * 8, boss.img); 
+                    drawImg(boss.x + c * 8, boss.y + r * 8, 'B'); 
                 }
             }
+            drawImg(64, 80,'B');  //debug
         }
 
         if (item.state == 1) {
@@ -328,7 +333,7 @@ void hitCheck()
 		int dy = (enemy[i].y + enemy[i].hei / 2) - (player.y + player.hei / 2);
 		if (dx < 0) dx *= -1;
 		if (dy < 0) dy *= -1;
-		if (dx <= (player.wid + enemy[i].wid) / 2 && dy <= (player.hei + enemy[i].hei) / 2) {
+		if (dx < (player.wid + enemy[i].wid) / 2 && dy < (player.hei + enemy[i].hei) / 2) {
 			player.life--;
 			enemy[i].state = 0;
             
@@ -342,7 +347,7 @@ void hitCheck()
 		int dy = (boss.y + boss.hei / 2) - (bullet[i].y + bullet[i].hei / 2);
 		if (dx < 0) dx *= -1;
 		if (dy < 0) dy *= -1;
-		if (dx <=  (boss.wid + bullet[i].wid) / 2 && dy <= (boss.hei + bullet[i].hei) / 2) {
+		if (dx <  (boss.wid + bullet[i].wid) / 2 && dy < (boss.hei + bullet[i].hei) / 2) {
             boss.life--;
             bullet[i].state = 0;
             break;
@@ -354,7 +359,7 @@ void hitCheck()
 	int dy = (item.y + item.hei / 2) - (player.y + player.hei / 2); 
     if (dx < 0) dx *= -1;
     if (dy < 0) dy *= -1;
-    if (dx <= (item.wid + player.wid) / 2 && dy <= (item.hei + player.hei) / 2) {
+    if (dx < (item.wid + player.wid) / 2 && dy < (item.hei + player.hei) / 2) {
         item.ptn = 1;  //本来ならtimerでshotgun,beamのどちらか抽選
         startPowerUp = timer;
         if (item.ptn == SHOTGUN) {
@@ -596,4 +601,3 @@ void drawFormula() {
         lcd_putc(7, i + screen_x_start, input_str[i]);
     }
 }
-
