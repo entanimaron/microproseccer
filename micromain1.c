@@ -16,7 +16,7 @@
 #define ADDR_LED    ((volatile int *)0xff08)
 #define ADDR_LCD    ((volatile int *)0xff0c)
 #define ADDR_KEYPAD ((volatile int *)0xff18)
-#define ADDR_BUZZ   ((volatile int *)0xff1c)
+#define ADDR_BUZZ   ((volatile int *)0xff14)
 
 char boss_img = 'B';
 char item_img = 'I';
@@ -103,7 +103,10 @@ void interrupt_handler() {
 		lcd_puts(0, 4, "GAME CLEAR!");
 	} else if (state == OVER) {
 		//描画
+        *ADDR_BUZZ = 15; 
+        buzz_timer = 3;
 		lcd_puts(0, 4, "GAME OVER!");
+
 	}
 
     if (buzz_timer > 0) {
@@ -626,4 +629,3 @@ void drawFormula() {
         lcd_putc(7, i + screen_x_start, input_str[i]);
     }
 }
-
