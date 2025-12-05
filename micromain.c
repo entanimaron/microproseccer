@@ -147,17 +147,17 @@ int playGame() {
 	
     int current_fire_button = key_pad_scan();
     if (current_fire_button == 0x10 && prev_fire_button != 0x10) setBullet();
-    if (current_fire_button == 0xc && prev_fire_button != 0xc) setItem();  //debug
+    if (current_fire_button == 0xc && prev_fire_button != 0xc) setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);  //debug
     prev_fire_button = current_fire_button;
     
-	if (item.state == 0 && timer % 600 == 1) setItem();
+	if (item.state == 0 && cnt % 600 == 1) setItem();
 	if (cnt % 10 == 0) {  
 			setEnemy(64, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
 			setEnemy(72, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
 		} else if (cnt % 30 == 0 && cnt > 1) {  //数字のセット
             setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);
         }
-    if (shotType != NORMAL && timer - startPowerUp >= 100) shotType = NORMAL;
+    if (shotType != NORMAL && cnt - startPowerUp >= 10) shotType = NORMAL;
 	
 	movePlayer();  //ユーザ入力のためそのまま
 	
@@ -364,7 +364,7 @@ void hitCheck()
     if (dy < 0) dy *= -1;
     if (dx < (item.wid + player.wid) / 2 && dy < (item.hei + player.hei) / 2) {
         item.ptn = SHOTGUN;  //本来ならtimerでshotgun,beamのどちらか抽選
-        startPowerUp = timer;
+        startPowerUp = cnt;
         if (item.ptn == SHOTGUN) {
             shotType = SHOTGUN;
         } else if (item.ptn == HEART) {
