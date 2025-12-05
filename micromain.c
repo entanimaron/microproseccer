@@ -42,6 +42,7 @@ void interrupt_handler() {
 	lcd_clear_vbuf();
 
 	if (state == INIT) {
+        lcd_puts(3, 4, "PUSH D!");
 	} else if (state == OPENING) {
 		lcd_puts(3, 4, "MIPS SHMUP");
 		//描画
@@ -72,7 +73,7 @@ void interrupt_handler() {
             }
             
         }
-		if (boss.state == 1) { 
+		if (boss.state == 1) {  //ボスの表示
             for (int r = 0; r < 3; r++) { // 行 (Y)
                 for (int c = 0; c < 3; c++) { // 列 (X)
                     drawImg(boss.x + c * 8, boss.y + r * 8, boss.img); 
@@ -81,7 +82,7 @@ void interrupt_handler() {
         }
 
         if (item.state == 1) {
-            drawImg(item.x, item.y, item_img);
+            lcd_putc(item.y / 8, item.x / 8, item_img);
         }
 		
 	    
@@ -136,22 +137,16 @@ void main() {
 int playGame() {
 	if (player.life < 1) return 1;
 	if (boss.life < 1) return 0;
-	if (boss.state == 0 && player.life > 0) {
-		boss.x = WIDTH - 24; 
-        boss.y = HEIGHT / 2 - 12; 
-        boss.wid = 24;      
-        boss.hei = 24;      
-        boss.life = 30;
-        boss.state = 1;
-        boss.img = boss_img;
-	}
+	
     int current_fire_button = key_pad_scan();
-    if (current_fire_button == 0x0 && prev_fire_button != 0x0) setBullet();
+    if (current_fire_button == 0x10 && prev_fire_button != 0x10) setBullet();
+    if (current_fire_button == 0xc && prev_fire_button != 0xc) setItem();  //debug
     prev_fire_button = current_fire_button;
+    
 	if (item.state == 0 && timer % 600 == 1) setItem();
 	if (cnt % 10 == 0) {  
-			setEnemy(90, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
-			setEnemy(86, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
+			setEnemy(64, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
+			setEnemy(72, (cnt / 10 % 6) * 8, 3, 0, '*', 1, ENE_BULLET, 8, 8);
 		} else if (cnt % 30 == 0 && cnt > 1) {  //数字のセット
             setEnemy(80, (cnt / 10 % 6) * 8, 3, 0, 'n', createNum(), NUM, 16, 8);
         }
@@ -163,7 +158,6 @@ int playGame() {
 }
 
 void drawImg(int x, int y, char img) {
-	int cnt = 0;
 	int x_char = x / 8;
 	int y_char = y / 8;
 	if (x_char >= 0 && x_char < WIDTH / 8 && y_char >= 0 && y_char < HEIGHT / 8) {
@@ -185,6 +179,19 @@ void initVariable()
     timer = 0;
     startPowerUp = 0;
     shotType = NORMAL;
+    //ボス生成
+    boss.x = WIDTH - 24; 
+    boss.y = HEIGHT / 2 - 12; 
+    boss.wid = 24;      
+    boss.hei = 24;      
+    boss.life = 30;
+    boss.state = 1;
+    boss.img = boss_img;
+    for (int i = 0; i < BULLET_MAX; i++) {
+        enemy[i].state = 0;
+    }
+    item.state = 0;
+    item.img = item_img;
 }
 
 void movePlayer()
@@ -204,13 +211,13 @@ void movePlayer()
 void setBullet()
 {
     int base_x = player.x + player.wid;
-    int base_y = player.y + player.hei / 2;
+    int base_y = player.y;
     if (shotType == NORMAL) {  //通常弾
         for (int i = 0; i < BULLET_MAX; i++) {
 		    if (bullet[i].state == 0) {
 			    bullet[i].x = base_x;
 			    bullet[i].y = base_y;
-			    bullet[i].vx = 20;
+			    bullet[i].vx = 8;
 			    bullet[i].vy = 0;
 			    bullet[i].state = 1;
 			    bullet[i].wid = 8;
@@ -225,7 +232,7 @@ void setBullet()
 		        if (bullet[i].state == 0) {
 			        bullet[i].x = base_x;
 			        bullet[i].y = base_y;
-			        bullet[i].vx = 15;
+			        bullet[i].vx = 4;
 			        bullet[i].vy = (k - 1) * (-5);
 			        bullet[i].state = 1;
 			        bullet[i].wid = 8;
@@ -296,7 +303,7 @@ void moveEnemy()
 void setItem()
 {
     item.x = WIDTH * 3 / 4;
-    item.y = (myRand() % 8) * 8 + 4;
+    item.y = myRand() % 8 * 8;
     item.vx = 2;
     item.vy = 0;  //今のところ0
     item.state = 1;
@@ -324,7 +331,7 @@ void hitCheck()
 		if (dx <= (player.wid + enemy[i].wid) / 2 && dy <= (player.hei + enemy[i].hei) / 2) {
 			player.life--;
 			enemy[i].state = 0;
-            soundBuzz();
+            
             break;
 		}
 	}
@@ -467,7 +474,7 @@ void lcd_putc(int y, int x, int c) {
 	/* Not implemented yet */
 	for (int v = 0; v < 8; v++)
                 for (int h = 0; h < 8; h++)
-                        if ((font8x8[(c - 0x20) * 8 + h] >> v) & 0x01)
+                        if ((font8x8[(c - 0x20)* 8 + h] >> v) & 0x01)
                                 lcd_set_vbuf_pixel(y * 8 + v, x * 8 + h, 0, 255, 0);
 }
 
@@ -584,8 +591,9 @@ void check_factor_solution() {
 
 void drawFormula() {
     // 画面下部のY=7行目に表示
+    int screen_x_start = 6;
     for(int i = 0; i < input_len; i++) {
-        lcd_putc(7, i, input_str[i]);
+        lcd_putc(7, i + screen_x_start, input_str[i]);
     }
 }
 
